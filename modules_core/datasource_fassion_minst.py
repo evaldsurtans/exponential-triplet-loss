@@ -64,7 +64,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             random.shuffle(samples)
         random.shuffle(groups)
 
-        if self.args.batch_size % self.args.triplet_positives != 0:
+        if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:
             logging.error(f'batch does not accommodate triplet_positives {self.args.batch_size} {self.args.triplet_positives}')
             exit()
 

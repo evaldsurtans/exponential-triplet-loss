@@ -66,7 +66,7 @@ parser.add_argument('-datasource', default='datasource_fassion_minst', type=str)
 parser.add_argument('-triplet_sampler', default='triplet_sampler_hard', type=str)
 
 parser.add_argument('-path_data', default='./data', type=str)
-parser.add_argument('-datasource_workers', default=1, type=int) #8
+parser.add_argument('-datasource_workers', default=8, type=int) #8
 
 parser.add_argument('-epochs_count', default=10, type=int)
 
