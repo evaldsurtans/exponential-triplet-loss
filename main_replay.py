@@ -1,6 +1,7 @@
 import matplotlib
 from torch.autograd import Variable
 
+import rank_based
 from modules.file_utils import FileUtils
 from modules.torch_utils import to_numpy
 
@@ -62,7 +63,7 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_pink_skateboard', type=str)
+parser.add_argument('-model', default='model_emb_pre_palm', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
@@ -78,7 +79,6 @@ parser.add_argument('-epochs_count', default=10, type=int)
 
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
-parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=30, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
@@ -90,7 +90,7 @@ parser.add_argument('-lossless_beta', default=2.0, type=float)
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
-parser.add_argument('-embedding_norm', default='l2', type=str)
+parser.add_argument('-embedding_norm', default='l1', type=str)
 
 parser.add_argument('-embedding_layers', default=2, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
@@ -111,7 +111,7 @@ parser.add_argument('-is_conv_max_pool', default=False, type=lambda x: (str(x).l
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
-parser.add_argument('-early_stopping_patience', default=3, type=int)
+parser.add_argument('-early_stopping_patience', default=5, type=int)
 parser.add_argument('-early_stopping_param', default='train_loss', type=str)
 parser.add_argument('-early_stopping_param_coef', default=-1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.05, type=float)
@@ -121,14 +121,14 @@ parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lowe
 
 args, args_other = parser.parse_known_args()
 
-tmp = ['id', 'name', 'repeat_id', 'epoch', 'test_acc_range', 'test_acc_closest', 'test_eer', 'train_acc_range', 'train_acc_closest', 'train_eer', 'test_dist_delta', 'train_dist_delta', 'train_dist_positives', 'train_dist_negatives', 'test_dist_positives', 'test_dist_negatives', 'train_loss', 'test_loss', 'avg_epoch_time']
+tmp = ['id', 'name', 'repeat_id', 'epoch', 'test_acc', 'test_acc2', 'test_eer', 'train_acc', 'train_acc2', 'train_eer', 'test_dist_delta', 'train_dist_delta', 'train_dist_positives', 'train_dist_negatives', 'test_dist_positives', 'test_dist_negatives', 'train_loss', 'test_loss', 'avg_epoch_time']
 if not args.params_report is None:
     for it in args.params_report:
         if not it in tmp:
             tmp.append(it)
 args.params_report = tmp
 
-tmp = ['epoch', 'train_loss', 'test_loss', 'test_acc_range', 'test_acc_closest', 'test_eer', 'train_acc_range', 'train_acc_closest', 'train_eer', 'test_dist_delta', 'train_dist_delta', 'train_dist_positives', 'train_dist_neg', 'test_dist_pos', 'test_dist_neg', 'train_dist_pos_worst', 'epoch_time', 'early_percent_improvement']
+tmp = ['epoch', 'train_loss', 'test_loss', 'test_acc', 'test_acc2', 'test_eer', 'train_acc', 'train_acc2', 'train_eer', 'test_dist_delta', 'train_dist_delta', 'train_dist_positives', 'train_dist_neg', 'test_dist_pos', 'test_dist_neg', 'train_dist_pos_worst', 'epoch_time', 'early_percent_improvement']
 if not args.params_report_local is None:
     for it in args.params_report_local:
         if not it in tmp:
@@ -184,18 +184,26 @@ if args.device == 'cuda' and torch.cuda.device_count() > 1:
 
 model = model.to(args.device)
 
+experience_neg = rank_based.Experience(dict(
+    batch_size=args.batch_size,
+    beta_zero=0.5,
+    alpha=0.7,
+    replace_old=True,
+    learn_start=0,
+    size=data_loader_train.dataset.size_samples,
+    total_steps=args.epochs_count * data_loader_train.dataset.size_samples
+))
+
 optimizer_func = None
 if args.optimizer == 'adam':
     optimizer_func = torch.optim.Adam(
         model.parameters(),
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay
+        lr=args.learning_rate
     )
 elif args.optimizer == 'rmsprop':
     optimizer_func = torch.optim.RMSprop(
         model.parameters(),
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay
+        lr=args.learning_rate
     )
 
 def calc_err(meter):
@@ -204,7 +212,7 @@ def calc_err(meter):
     thresh = interp1d(fpr, thresholds)(eer)
     return fpr, tpr, eer
 
-def forward(batch):
+def forward(batch, is_train):
     y = batch[0].to(args.device)
     x = batch[1].to(args.device)
 
@@ -220,6 +228,14 @@ def forward(batch):
 
     sampled = triplet_sampler.sample_batch(output, y)
 
+    # TODO get from replay half batch
+    # TODO add calc of dists from replay
+    # TODO update replay buffer values
+
+    # TODO new store negatives from sampled
+    # TODO select most negative from all given samples
+    #if is_train:
+
     max_distance = 2.0
     if args.is_triplet_loss_margin_auto:
         margin_distance = max_distance / len(data_loader_train.dataset.classes)
@@ -227,50 +243,30 @@ def forward(batch):
         margin_distance = (args.triplet_loss_margin * max_distance)
 
     if args.triplet_loss == 'exp1':
-        loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0))) - 1.0)
+        loss = torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) + \
+               torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0))) - 2.0
     elif args.triplet_loss == 'exp1_neg_all':
+        loss = torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) + \
+               torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist_all']-margin_distance, 0))) - 2.0
+    elif args.triplet_loss == 'exp_neg_all_only':
+        loss = torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist_all']-margin_distance, 0))) - 1.0
+    elif args.triplet_loss == 'exp2':
+        loss = torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) + \
+               torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0))) - 2.0
+    elif args.triplet_loss == 'exp2_coef_neg_all':
         loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
                args.coef_loss_neg * (torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist_all']-margin_distance, 0))) - 1.0)
-
-    elif args.triplet_loss == 'exp3_abs': # abs and smooth loss idea to encourage to mantain variance instead of single point collapse
-        loss = (torch.exp(torch.mean(torch.abs(sampled['positives_dist']-margin_distance))) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(torch.mean(torch.abs(max_distance-sampled['negatives_dist']-margin_distance))) - 1.0)
-    elif args.triplet_loss == 'exp3_abs_neg_all':
-        loss = (torch.exp(torch.mean(torch.abs(sampled['positives_dist']-margin_distance))) - 1.0) + \
-               args.coef_loss_neg * (torch.exp(torch.mean(torch.abs(max_distance-sampled['negatives_dist_all']-margin_distance))) - 1.0)
-
-    elif args.triplet_loss == 'exp4_smooth':
-        loss = (torch.exp(F.smooth_l1_loss(sampled['positives_dist'], torch.ones(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(F.smooth_l1_loss(max_distance-sampled['negatives_dist'], torch.ones(sampled['negatives_dist'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0)
-    elif args.triplet_loss == 'exp4_smooth_neg_all':
-        loss = (torch.exp(F.smooth_l1_loss(sampled['positives_dist'], torch.ones(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0) + \
-               args.coef_loss_neg * (torch.exp(F.smooth_l1_loss(max_distance-sampled['negatives_dist_all'], torch.ones(sampled['negatives_dist_all'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0)
-
-    elif args.triplet_loss == 'smooth5':
-        loss = F.smooth_l1_loss(torch.clamp(sampled['positives_dist']-margin_distance, 0), torch.zeros(sampled['positives_dist'].size()).to(args.device), reduction='mean') + \
-                 args.coef_loss_neg * F.smooth_l1_loss(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0), torch.zeros(sampled['negatives_dist'].size()).to(args.device), reduction='mean')
-    elif args.triplet_loss == 'smooth5_neg_all':
-        loss = (torch.exp(F.smooth_l1_loss(sampled['positives_dist'], torch.zeros(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0) + \
-               args.coef_loss_neg * (torch.exp(F.smooth_l1_loss(max_distance-sampled['negatives_dist_all'], torch.zeros(sampled['negatives_dist_all'].size()).to(args.device) * margin_distance, reduction='mean')) - 1.0)
-
-    elif args.triplet_loss == 'smooth6':
-        loss = F.smooth_l1_loss(sampled['positives_dist'], torch.ones(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean') + \
-                 args.coef_loss_neg * F.smooth_l1_loss(max_distance-sampled['negatives_dist'], torch.ones(sampled['negatives_dist'].size()).to(args.device) * margin_distance, reduction='mean')
-    elif args.triplet_loss == 'smooth6_neg_all':
-        loss = F.smooth_l1_loss(sampled['positives_dist'], torch.ones(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean') + \
-                 args.coef_loss_neg * F.smooth_l1_loss(max_distance-sampled['negatives_dist_all'], torch.ones(sampled['negatives_dist_all'].size()).to(args.device) * margin_distance, reduction='mean')
-
+    if args.triplet_loss == 'exp2_coef':
+        loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
+               args.coef_loss_neg * (torch.exp(torch.mean(max_distance-sampled['negatives_dist'])) - 1.0)
     elif args.triplet_loss == 'standard':
         delta = sampled['positives_dist'] - sampled['negatives_dist'] + margin_distance
         loss = torch.mean(torch.clamp(delta, min=0))
     elif args.triplet_loss == 'standard2':
-        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist']) + margin_distance
+        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist'] + margin_distance)
         loss = torch.clamp(delta, min=0)
-    elif args.triplet_loss == 'standard3':
-        loss = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist']) + 2.0
     elif args.triplet_loss == 'standard2_all':
-        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist_all']) + margin_distance
+        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist_all'] + margin_distance)
         loss = torch.clamp(delta, min=0)
     elif args.triplet_loss == 'lossless':
         loss = -torch.mean(torch.log10(1e-7 + 1.0 - sampled['positives_dist'] / args.lossless_beta)) - torch.mean(torch.log10(1e-7 + 1.0 - (2.0 - sampled['negatives_dist']) / args.lossless_beta))
@@ -299,12 +295,12 @@ state = {
     'early_percent_improvement': 0,
     'train_loss': -1,
     'test_loss': -1,
-    'test_acc_range': -1,
-    'train_acc_range': -1,
+    'test_acc': -1,
+    'train_acc': -1,
     'test_auc': -1,
     'train_auc': -1,
-    'test_acc_closest': -1,
-    'train_acc_closest': -1,
+    'test_acc2': -1,
+    'train_acc2': -1,
     'test_auc2': -1,
     'train_auc2': -1,
     'test_eer': -1,
@@ -327,11 +323,11 @@ meters = dict(
     train_loss = tnt.meter.AverageValueMeter(),
     test_loss = tnt.meter.AverageValueMeter(),
 
-    test_acc_range = tnt.meter.ClassErrorMeter(accuracy=True),
-    train_acc_range = tnt.meter.ClassErrorMeter(accuracy=True),
+    test_acc = tnt.meter.ClassErrorMeter(accuracy=True),
+    train_acc = tnt.meter.ClassErrorMeter(accuracy=True),
 
-    test_acc_closest = tnt.meter.ClassErrorMeter(accuracy=True),
-    train_acc_closest = tnt.meter.ClassErrorMeter(accuracy=True),
+    test_acc2 = tnt.meter.ClassErrorMeter(accuracy=True),
+    train_acc2 = tnt.meter.ClassErrorMeter(accuracy=True),
 
     test_auc = tnt.meter.AUCMeter(),
     train_auc = tnt.meter.AUCMeter(),
@@ -375,7 +371,7 @@ for epoch in range(1, args.epochs_count + 1):
             optimizer_func.zero_grad()
             torch.set_grad_enabled(True)
 
-            result = forward(batch)
+            result = forward(batch, is_train=(data_loader == data_loader_train))
 
             if data_loader == data_loader_train:
                 result['loss'].backward(retain_graph=True)
@@ -402,21 +398,14 @@ for epoch in range(1, args.epochs_count + 1):
                 break
 
         histogram_bins = 'auto'
-        #histogram_bins = 'doane'
-        histogram_max_samples = 1000
+        #histogram_bins = 100
         tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_{meter_prefix}', epoch)
-
-        sampled_hist_positives_dist = np.array(hist_negatives_dist)[np.random.randint(0, len(hist_positives_dist), size=min(len(hist_positives_dist), histogram_max_samples))]
-        sampled_hist_negatives_dist = np.array(hist_negatives_dist)[np.random.randint(0, len(hist_negatives_dist), size=min(len(hist_negatives_dist), histogram_max_samples))]
-
-        tensorboard_utils.addHistogramsTwo(hist_positives_dist, hist_negatives_dist, f'sampled_{meter_prefix}', epoch)
-
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_positives', sampled_hist_positives_dist, epoch, bins=histogram_bins)
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_negatives', sampled_hist_negatives_dist, epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_positives', np.array(hist_positives_dist), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_negatives', np.array(hist_negatives_dist), epoch, bins=histogram_bins)
 
         predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range')
 
-        meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
+        meters[f'{meter_prefix}_acc'].add(predicted, target_y)
 
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
@@ -424,7 +413,7 @@ for epoch in range(1, args.epochs_count + 1):
 
         predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest')
 
-        meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
+        meters[f'{meter_prefix}_acc2'].add(predicted, target_y)
 
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
@@ -437,11 +426,11 @@ for epoch in range(1, args.epochs_count + 1):
             metadata=output_y_labels,
             global_step=epoch, tag=f'{meter_prefix}_embeddings')
 
-        state[f'{meter_prefix}_acc_range'] = meters[f'{meter_prefix}_acc_range'].value()[0]
+        state[f'{meter_prefix}_acc'] = meters[f'{meter_prefix}_acc'].value()[0]
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc'])
         state[f'{meter_prefix}_eer'] = eer
 
-        state[f'{meter_prefix}_acc_closest'] = meters[f'{meter_prefix}_acc_closest'].value()[0]
+        state[f'{meter_prefix}_acc2'] = meters[f'{meter_prefix}_acc2'].value()[0]
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc2'])
         state[f'{meter_prefix}_eer2'] = eer
 
@@ -460,9 +449,9 @@ for epoch in range(1, args.epochs_count + 1):
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_positives', scalar_value=state[f'{meter_prefix}_dist_positives'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_negatives', scalar_value=state[f'{meter_prefix}_dist_negatives'], global_step=epoch)
 
-        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc_range', scalar_value=state[f'{meter_prefix}_acc_range'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc', scalar_value=state[f'{meter_prefix}_acc'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_eer', scalar_value=state[f'{meter_prefix}_eer'], global_step=epoch)
-        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc_closest', scalar_value=state[f'{meter_prefix}_acc_closest'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc2', scalar_value=state[f'{meter_prefix}_acc2'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_eer2', scalar_value=state[f'{meter_prefix}_eer2'], global_step=epoch)
 
         tensorboard_utils.addPlot1D(
@@ -514,9 +503,6 @@ for epoch in range(1, args.epochs_count + 1):
     if epoch > 1:
         if state_before[args.early_stopping_param] != 0:
             percent_improvement = args.early_stopping_param_coef * (state[args.early_stopping_param] - state_before[args.early_stopping_param]) / state_before[args.early_stopping_param]
-            if math.isnan(percent_improvement):
-                percent_improvement = 0
-
         if state[args.early_stopping_param] >= 0:
             if args.early_stopping_delta_percent > percent_improvement:
                 state['early_stopping_patience'] += 1
@@ -528,13 +514,15 @@ for epoch in range(1, args.epochs_count + 1):
     torch.save(model_module.state_dict(), os.path.join(run_path, f'{args.name}.pt'))
 
     logging.info(
-        f'{args.name} {round(percent * 100, 2)}% each: {round(state["avg_epoch_time"], 2)} min eta: {round(eta, 2)} min acc: {round(state["train_acc_range"], 2)} loss: {round(state["train_loss"], 2)} improve: {round(percent_improvement, 2)}')
+        f'{round(percent * 100, 2)}% each: {round(state["avg_epoch_time"], 2)} min eta: {round(eta, 2)} min acc: {round(state["train_acc"], 2)} loss: {round(state["train_loss"], 2)} improve: {round(percent_improvement, 2)}')
 
     CsvUtils.add_results_local(args, state)
     CsvUtils.add_results(args, state)
 
-    if state['early_stopping_patience'] >= args.early_stopping_patience:
-        logging_utils.info(f'{args.name} early stopping')
+    if state['early_stopping_patience'] >= args.early_stopping_patience or \
+            math.isnan(percent_improvement) or \
+            (percent_improvement == 0 and state['epoch'] > 1):
+        logging_utils.info('early stopping')
         break
 
 

@@ -32,6 +32,16 @@ from modules.file_utils import FileUtils
 from modules.dict_to_obj import DictToObj
 from distutils.dir_util import copy_tree
 
+# 0	T-shirt/top
+# 1	Trouser
+# 2	Pullover
+# 3	Dress
+# 4	Coat
+# 5	Sandal
+# 6	Shirt
+# 7	Sneaker
+# 8	Bag
+# 9	Ankle boot
 
 class Dataset(torch.utils.data.dataset.Dataset):
     def __init__(self, args, is_test_data):
@@ -40,18 +50,34 @@ class Dataset(torch.utils.data.dataset.Dataset):
         self.args = args
         self.is_test_data = is_test_data
 
-        FileUtils.createDir(self.args.path_data)
-        self.dataset = torchvision.datasets.FashionMNIST(
-            self.args.path_data,
-            download=True,
-            train=not is_test_data,
-            transform=torchvision.transforms.ToTensor()
-        )
+        path_data = f'{self.args.path_data}/{self.args.datasource_type}'
+        FileUtils.createDir(path_data)
 
-        self.classes = self.dataset.classes
-        self.class_to_idx = self.dataset.class_to_idx
-        self.samples = []
-        groups = [{ 'samples': [], 'counter': 0 } for _ in self.dataset.classes]
+        if self.args.datasource_type == 'fassion_minst':
+            self.dataset = torchvision.datasets.FashionMNIST(
+                path_data,
+                download=True,
+                train=not is_test_data,
+                transform=torchvision.transforms.ToTensor()
+            )
+        elif self.args.datasource_type == 'minst':
+            self.dataset = torchvision.datasets.MNIST(
+                path_data,
+                download=True,
+                train=not is_test_data,
+                transform=torchvision.transforms.ToTensor()
+            )
+        elif self.args.datasource_type == 'eminst': # extended minst https://arxiv.org/pdf/1702.05373.pdf
+            self.dataset = torchvision.datasets.EMNIST(
+                path_data,
+                download=True,
+                train=not is_test_data,
+                transform=torchvision.transforms.ToTensor()
+            )
+
+        self.classes = self.dataset.test_labels if is_test_data else self.dataset.train_labels
+        self.classes = np.arange(np.max(self.classes.numpy()) + 1, dtype=np.int)
+        groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for img, label_idx in self.dataset:
             groups[label_idx]['samples'].append(img)
@@ -62,20 +88,27 @@ class Dataset(torch.utils.data.dataset.Dataset):
             self.size_samples += int(len(samples) / self.args.triplet_positives)
             logging.info(f'group:{idx} samples:{len(samples)}')
             random.shuffle(samples)
-        random.shuffle(groups)
+        self.groups = groups
 
         if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:
             logging.error(f'batch does not accommodate triplet_positives {self.args.batch_size} {self.args.triplet_positives}')
             exit()
+        self.reshuffle()
+
+    def reshuffle(self):
+        random.shuffle(self.groups)
+        for idx, group in enumerate(self.groups):
+            samples = group['samples']
+            random.shuffle(samples)
 
         idx_group = 0
         count_sample_batches = int(self.size_samples / self.args.batch_size)
         self.size_samples = int(self.args.batch_size * count_sample_batches)
-
+        self.samples = []
         for _ in range(self.size_samples):
-            group = groups[idx_group]
+            group = self.groups[idx_group]
             idx_group += 1
-            if idx_group >= len(groups):
+            if idx_group >= len(self.groups):
                 idx_group = 0
 
             for _ in range(self.args.triplet_positives):
@@ -86,11 +119,12 @@ class Dataset(torch.utils.data.dataset.Dataset):
                 if group['counter'] >= len(group['samples']):
                     group['counter'] = 0
 
-        logging.info(f'{"test" if is_test_data else "train"} size_samples: {len(self.samples)}')
+        logging.info(f'{"test" if self.is_test_data else "train"} size_samples: {len(self.samples)}')
         # logging.info(f'idx_group: {idx_group}')
         # for idx, group in enumerate(groups):
         #     logging.info(f'group: {idx} counter: {group["counter"]}')
 
+    # 28x28
     def __getitem__(self, index):
         return self.samples[index]
 

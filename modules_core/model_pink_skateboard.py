@@ -48,27 +48,24 @@ class Model(torch.nn.Module):
         if not hasattr(self.args, 'embedding_function'):
             self.args.embedding_function = 'tanh'
 
-        layers_encoder_melspec, output_size_mel, flatten_size = self.__create_layers_encoder(name='mel', input_size=args.input_size)
+        layers_encoder, output_size, flatten_size = self.__create_layers_encoder(name='enc', input_size=args.input_size)
         self.flatten_conv_size = flatten_size
 
-        logging.info(f'conv outputs: {output_size_mel}x{output_size_mel} {self.channels_conv_size} {flatten_size}')
+        logging.info(f'conv outputs: {output_size}x{output_size} {self.channels_conv_size} {flatten_size}')
 
-        if self.args.is_split_affine_layer:
-            layers_encoder_melspec.add_module(f'mel_affine', torch.nn.Linear(in_features=self.flatten_conv_size, out_features=self.args.split_affine_hidden))
-            layers_encoder_melspec.add_module(f'mel_affine_relu', torch.nn.ReLU())
-            self.flatten_conv_size = self.args.split_affine_hidden
-        self.layers_encoder_melspec = layers_encoder_melspec
-
+        self.layers_encoder = layers_encoder
 
         output_size = self.flatten_conv_size
         self.layers_suffix_affine = torch.nn.Sequential()
         for idx_layer in range(self.args.suffix_affine_layers):
-            self.layers_suffix_affine.add_module(f'layers_suffix_affine_{idx_layer}', torch.nn.Linear(in_features=output_size, out_features=args.suffix_affine_layers_hidden))
+            self.layers_suffix_affine.add_module(
+                f'layers_suffix_affine_{idx_layer}',
+                torch.nn.Linear(in_features=output_size, out_features=args.suffix_affine_layers_hidden, bias=False))
             self.layers_suffix_affine.add_module(f'layers_suffix_affine_relu_{idx_layer}',torch.nn.ReLU())
             output_size = args.suffix_affine_layers_hidden
 
         self.layers_embedding = torch.nn.Sequential(
-            torch.nn.Linear(in_features=output_size, out_features=self.args.embedding_size),
+            torch.nn.Linear(in_features=output_size, out_features=self.args.embedding_size, bias=True),
         )
 
         if self.args.embedding_function == 'sigmoid':
@@ -141,15 +138,15 @@ class Model(torch.nn.Module):
     def forward(self, x):
         # debug code
         # inp = x
-        # for name, each in self.layers_encoder_melspec.named_children():
+        # for name, each in self.layers_encoder.named_children():
         #     print(f'{name} in: {inp.size()}')
         #     out = each.forward(inp)
         #     print(f'{name} out: {out.size()}')
         #     inp = out
 
-        output_mel = self.layers_encoder_melspec.forward(x)
+        output_enc = self.layers_encoder.forward(x)
 
-        output_sufix = self.layers_suffix_affine.forward(output_mel)
+        output_sufix = self.layers_suffix_affine.forward(output_enc)
         output_emb = self.layers_embedding.forward(output_sufix)
 
         # Important to normalize for consine similarity

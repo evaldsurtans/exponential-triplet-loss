@@ -1,4 +1,7 @@
+import logging
 import os
+import sys
+import traceback
 import unicodedata
 import string
 import glob
@@ -57,31 +60,44 @@ class TensorBoardUtils(object):
         # width, height = fig.get_size_inches() * fig.get_dpi()
         width, height = fig.canvas.get_width_height()
         image = np.fromstring(canvas.tostring_rgb(), dtype=np.uint8).reshape(int(height), int(width), 3)
+
+        image = np.swapaxes(image, 2, 0)
+        image = np.swapaxes(image, 2, 1)
         self.tensorboard_writer.add_image(tag=tag, img_tensor=image, global_step=global_step)
 
         plt.close(fig)
 
 
     def addHistogramsTwo(self, data_positives, data_negatives, tag, global_step=0):
-        fig = plt.figure()
-        plt.clf()
+        try:
+            plt.clf()
+            fig = plt.figure()
 
-        n, bins, patches = plt.hist(data_positives, 100, density=True, facecolor='g', alpha=0.75)
-        n, bins, patches = plt.hist(data_negatives, 100, density=True, facecolor='r', alpha=0.75)
+            n, bins, patches = plt.hist(data_positives, bins='auto', density=True, facecolor='g', alpha=0.75)
+            n, bins, patches = plt.hist(data_negatives, bins='auto', density=True, facecolor='r', alpha=0.75)
 
-        plt.xlabel('Distance')
-        plt.ylabel('Samples')
+            plt.xlabel('Distance')
+            plt.ylabel('Samples')
+            plt.yscale('log', nonposy='clip')
 
-        fig.set_tight_layout(True)
-        canvas = FigureCanvas(fig)
-        canvas.draw()
+            fig.set_tight_layout(True)
+            canvas = FigureCanvas(fig)
+            canvas.draw()
 
-        # width, height = fig.get_size_inches() * fig.get_dpi()
-        width, height = fig.canvas.get_width_height()
-        image = np.fromstring(canvas.tostring_rgb(), dtype=np.uint8).reshape(int(height), int(width), 3)
-        self.tensorboard_writer.add_image(tag=tag, img_tensor=image, global_step=global_step)
+            # width, height = fig.get_size_inches() * fig.get_dpi()
+            width, height = fig.canvas.get_width_height()
+            image = np.fromstring(canvas.tostring_rgb(), dtype=np.uint8).reshape(int(height), int(width), 3)
 
-        plt.close(fig)
+            image = np.swapaxes(image, 2, 0)
+            image = np.swapaxes(image, 2, 1)
+            self.tensorboard_writer.add_image(tag=tag, img_tensor=image, global_step=global_step)
+
+            plt.close(fig)
+
+        except Exception as e:
+            logging.error(str(e))
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            logging.error(traceback.format_exception(exc_type, exc_value, exc_tb))
 
 
     def addPlot2D(self, dataXY, tag, global_step=0):
@@ -95,10 +111,12 @@ class TensorBoardUtils(object):
         dataXY *= 255
         dataXY = dataXY.astype(dtype=np.uint8)
 
-        image = np.transpose(dataXY) # H, W
-        image = np.expand_dims(image, axis=2)
+        #image = np.transpose(dataXY) # H, W
+        image = np.expand_dims(dataXY, axis=2)
         image = np.tile(image, (1,1,3))
 
+        image = np.swapaxes(image, 2, 0)
+        image = np.swapaxes(image, 2, 1)
         self.tensorboard_writer.add_image(tag=tag, img_tensor=image, global_step=global_step)
 
 
@@ -121,6 +139,9 @@ class TensorBoardUtils(object):
         # width, height = fig.get_size_inches() * fig.get_dpi()
         width, height = fig.canvas.get_width_height()
         image = np.fromstring(canvas.tostring_rgb(), dtype=np.uint8).reshape(int(height), int(width), 3)
+
+        image = np.swapaxes(image, 2, 0)
+        image = np.swapaxes(image, 2, 1)
         self.tensorboard_writer.add_image(tag=tag, img_tensor=image, global_step=global_step)
 
         plt.close(fig)

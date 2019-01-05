@@ -72,7 +72,7 @@ class TripletSampler(object):
 
         distances_batch = self.get_distances(output)
 
-        for idx_anchor in range(0, y.size(0), self.args.triplet_positives): #one negative per positives
+        for idx_anchor in range(0, y.size(0)): #one negative per positives
             anchor = output[idx_anchor]
             anchor_y = y[idx_anchor]
 
@@ -81,26 +81,29 @@ class TripletSampler(object):
             positive = None
             positive_dist = None
             positive_y = None
-            for idx_positive in range(y.size(0)): # must iterate all for positives_dist_all and repeated samples in batch size
-                each_y = y[idx_positive]
-                if idx_positive != idx_anchor and torch.equal(each_y, anchor_y): # same class
-                    positives_dist_all.append(anchor_distances[idx_positive])
-                    if positive is None:
-                        positive_y = each_y
-                        positive = output[idx_positive]
-                        positive_dist = anchor_distances[idx_positive]
-                    elif positive_dist < anchor_distances[idx_positive]: # find worst case positive where longest distance
-                        positive_y = each_y
-                        positive_dist = anchor_distances[idx_positive]
-                        positive = output[idx_positive]
+            if idx_anchor % self.args.triplet_positives == 0:
+                for idx_positive in range(y.size(0)):
+                    each_y = y[idx_positive]
+                    if idx_positive != idx_anchor and torch.equal(each_y, anchor_y): # same class
+                        if idx_positive > idx_anchor:
+                            positives_dist_all.append(anchor_distances[idx_positive])
+                        if positive is None:
+                            positive_y = each_y
+                            positive = output[idx_positive]
+                            positive_dist = anchor_distances[idx_positive]
+                        elif positive_dist < anchor_distances[idx_positive]: # find worst case positive where longest distance
+                            positive_y = each_y
+                            positive_dist = anchor_distances[idx_positive]
+                            positive = output[idx_positive]
 
             negative = None
             negative_dist = None
             negative_y = None
-            for idx_negative in range(y.size(0)): # must iterate all for negatives_dist_all and repeated samples in batch size
+            for idx_negative in range(y.size(0)): # all before already checked
                 each_y = y[idx_negative]
                 if idx_negative != idx_anchor and not torch.equal(each_y, anchor_y): # not same class
-                    negatives_dist_all.append(anchor_distances[idx_negative])
+                    if idx_negative > idx_anchor:
+                        negatives_dist_all.append(anchor_distances[idx_negative])
                     if negative is None:
                         negative_y = each_y
                         negative = output[idx_negative]
@@ -110,15 +113,20 @@ class TripletSampler(object):
                         negative_dist = anchor_distances[idx_negative]
                         negative = output[idx_negative]
 
-            negatives_dist.append(negative_dist)
-            positives_dist.append(positive_dist)
+            if negative is not None:
+                negatives_dist.append(negative_dist)
+            if positive is not None:
+                positives_dist.append(positive_dist)
+            if negative is not None:
+                negatives.append(negative)
+            if positive is not None:
+                anchors.append(anchor)
+                positves.append(positive)
 
-            anchors.append(anchor)
-            negatives.append(negative)
-            positves.append(positive)
-
-            positves_pairs.append((anchor_y, positive_y)) # must be from same y class
-            negatives_pairs.append((anchor_y, negative_y)) # must be from different y classes
+            if positive is not None:
+                positves_pairs.append((anchor_y, positive_y)) # must be from same y class
+            if negative is not None:
+                negatives_pairs.append((anchor_y, negative_y)) # must be from different y classes
 
         result = dict(
             anchors = torch.stack(anchors),

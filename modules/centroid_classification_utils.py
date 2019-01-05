@@ -35,8 +35,9 @@ from modules.math_utils import cosine_similarity, normalize_vec
 
 class CentroidClassificationUtils(object):
 
+    # @type = 'range' 'closest'
     @staticmethod
-    def calulate_classes(embeddings, y_list):
+    def calulate_classes(embeddings, y_list, type='range'):
 
         class_centroids_noncomputed = {}
         for idx, embedding in enumerate(embeddings):
@@ -51,9 +52,8 @@ class CentroidClassificationUtils(object):
             np_all_centroids = np.array(class_centroids_noncomputed[key])
             class_centroids[key] = np.average(np_all_centroids, axis=0)
             max_dist = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.max)
-            avg_dist = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.average)
-            class_max_dist[key] = avg_dist + (max_dist - avg_dist) * 0.8
-
+            median_dist = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.median)
+            class_max_dist[key] = median_dist + (max_dist - median_dist) * 0.5
 
         predicted = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
@@ -61,6 +61,9 @@ class CentroidClassificationUtils(object):
 
         for idx, embedding in enumerate(embeddings):
             y_idx_real = y_list[idx]
+
+            closest_dist = float('Inf')
+            closest_idx = list(class_centroids.keys())[0]
 
             for key in class_centroids.keys():
 
@@ -70,12 +73,23 @@ class CentroidClassificationUtils(object):
 
                 # calculate if in range of some centroid other than real one
                 dist = cosine_similarity(embedding, y_embedding)
-                if max_dist > dist:
-                    predicted[idx][y_idx] += 1.0
 
-            predicted[idx] = normalize_vec(predicted[idx]) # normalize probabilities
+                if type == 'range':
+                    if max_dist > dist:
+                        predicted[idx][y_idx] += 1.0
+
+                if closest_dist > dist:
+                    closest_dist = dist
+                    closest_idx = y_idx
+
+            if type == 'closest':
+                predicted[idx][closest_idx] = 1.0
+
             target[idx][y_idx_real] = 1.0
             target_y.append(y_idx_real)
+
+        if type == 'range':
+            predicted = predicted / np.sum(predicted, keepdims=True)
 
         return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y))
 
