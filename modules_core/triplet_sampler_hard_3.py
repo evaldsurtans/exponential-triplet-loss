@@ -49,17 +49,15 @@ class TripletSampler(object):
             x1 = output[i, :].expand(batch_size, -1)
             x2 = output # whole batch
             # bug DIM
-            distances = 1. + 1e-5 - F.cosine_similarity(x1, x2, dim=1, eps=1e-8) # -1 .. 1
+            distances = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1
             # dot product ROUNDING PROBLEM IF 1.0 , need to be 1.00001
             # result = 0 .. 2.0
             distances_batch.append(distances)
 
         return torch.stack(distances_batch)
 
-    def sample_batch(self, output, y):
+    def sample_batch(self, output, y, margin):
 
-        positves = []
-        negatives = []
         positves_pairs = []
         negatives_pairs = []
         anchors = []
@@ -69,6 +67,9 @@ class TripletSampler(object):
 
         positives_dist_all = []
         negatives_dist_all = []
+
+        positives_dist_all_filtred = []
+        negatives_dist_all_filtred = []
 
         distances_batch = self.get_distances(output)
 
@@ -86,6 +87,13 @@ class TripletSampler(object):
                 if idx_positive != idx_anchor and torch.equal(each_y, anchor_y): # same class
                     if idx_positive > idx_anchor:
                         positives_dist_all.append(anchor_distances[idx_positive])
+
+                    if 'easy' in self.args.filter_samples:
+                        if anchor_distances[idx_positive] < margin:
+                            continue
+
+                    if idx_positive > idx_anchor:
+                        positives_dist_all_filtred.append(anchor_distances[idx_positive])
                     if positive is None:
                         positive_y = each_y
                         positive = output[idx_positive]
@@ -103,6 +111,13 @@ class TripletSampler(object):
                 if idx_negative != idx_anchor and not torch.equal(each_y, anchor_y): # not same class
                     if idx_negative > idx_anchor:
                         negatives_dist_all.append(anchor_distances[idx_negative])
+
+                    if 'easy' in self.args.filter_samples:
+                        if 2.0 - anchor_distances[idx_positive] < margin:
+                            continue
+
+                    if idx_negative > idx_anchor:
+                        negatives_dist_all_filtred.append(anchor_distances[idx_negative])
                     if negative is None:
                         negative_y = each_y
                         negative = output[idx_negative]
@@ -116,23 +131,28 @@ class TripletSampler(object):
                 negatives_dist.append(negative_dist)
             if positive is not None:
                 positives_dist.append(positive_dist)
-            if negative is not None:
-                negatives.append(negative)
-            if positive is not None:
-                anchors.append(anchor)
-                positves.append(positive)
+
+            anchors.append(anchor)
 
             if positive is not None:
                 positves_pairs.append((anchor_y, positive_y)) # must be from same y class
             if negative is not None:
                 negatives_pairs.append((anchor_y, negative_y)) # must be from different y classes
 
+        if len(positives_dist) == 0:
+            positives_dist = [torch.zeros((1,)).to(self.args.device)]
+        if len(positives_dist_all_filtred) == 0:
+            positives_dist_all_filtred = [torch.zeros((1,)).to(self.args.device)]
+        if len(negatives_dist) == 0:
+            negatives_dist = [torch.zeros((1,)).to(self.args.device)]
+        if len(negatives_dist_all_filtred) == 0:
+            negatives_dist_all_filtred = [torch.zeros((1,)).to(self.args.device)]
+
         result = dict(
-            anchors = torch.stack(anchors),
-            positves = torch.stack(positves),
-            negatives = torch.stack(negatives),
             positives_dist = torch.stack(positives_dist),
             negatives_dist = torch.stack(negatives_dist),
+            positives_dist_all_filtred = torch.stack(positives_dist_all_filtred),
+            negatives_dist_all_filtred = torch.stack(negatives_dist_all_filtred),
             positives_dist_all = torch.stack(positives_dist_all),
             negatives_dist_all = torch.stack(negatives_dist_all),
         )

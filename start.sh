@@ -35,14 +35,14 @@ cd ~/Documents/fassion_minst/
 
 # !!! WARNING when running on CPU hpc_gpu_process_count
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report test_5_jan_exp \
+python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
+-report test_14_more \
 -batch_size 114 \
--params_grid triplet_loss triplet_sampler coef_loss_neg \
+-params_grid triplet_loss \
 -triplet_positives 3 \
 -optimizer adam \
--learning_rate 1e-3 \
+-learning_rate 1e-4 \
 -embedding_size 32 \
 -embedding_function tanh \
 -suffix_affine_layers 2 \
@@ -54,15 +54,17 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_layers 2 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_loss exp1 exp1_neg_all exp3_abs exp4_smooth \
--coef_loss_neg 3.0 1.0 \
+-triplet_loss simple exp1 exp3_abs smooth5 smooth6 exp3_abs_neg_all smooth5_neg_all smooth6_neg_all lossless \
+-coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
--is_triplet_loss_margin_auto True \
--triplet_sampler triplet_sampler_hard_2 triplet_sampler_hard_2_all \
+-triplet_loss_margin 0.2 \
+-filter_samples easy \
+-is_triplet_loss_margin_auto False \
+-triplet_sampler triplet_sampler_hard_3 \
 -model model_pink_skateboard \
 -datasource datasource_pytorch \
--early_stopping_patience 3 \
--epochs_count 50 -is_hpc True \
+-early_stopping_patience 20 \
+-epochs_count 20 -is_hpc True \
 -is_quick_test False \
 -single_task False
 
