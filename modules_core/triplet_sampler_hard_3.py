@@ -110,10 +110,14 @@ class TripletSampler(object):
                 each_y = y[idx_negative]
                 if idx_negative != idx_anchor and not torch.equal(each_y, anchor_y): # not same class
                     if idx_negative > idx_anchor:
+                        # n = n_same_class_triplet * n_classes! / ((n_classes - 2)! * 2!)
+                        # 3×10!/((10−2)!×2!) when batch 30
+
+                        # 114/3 = 38 => 3×38!/((38−2)!×2!) = 2109
                         negatives_dist_all.append(anchor_distances[idx_negative])
 
                     if 'easy' in self.args.filter_samples:
-                        if 2.0 - anchor_distances[idx_positive] < margin:
+                        if 2.0 - anchor_distances[idx_negative] < margin:
                             continue
 
                     if idx_negative > idx_anchor:
@@ -126,6 +130,11 @@ class TripletSampler(object):
                         negative_y = each_y
                         negative_dist = anchor_distances[idx_negative]
                         negative = output[idx_negative]
+
+            if 'semi' in self.args.filter_samples:
+                if negative is not None and positive is not None:
+                    if positive_dist - negative_dist + margin < 0:
+                        continue
 
             if negative is not None:
                 negatives_dist.append(negative_dist)

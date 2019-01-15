@@ -35,16 +35,17 @@ cd ~/Documents/fassion_minst/
 
 # !!! WARNING when running on CPU hpc_gpu_process_count
 
-python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report test_14_more \
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 2 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cpu \
+-report test_15_exp2_c_missing \
 -batch_size 114 \
--params_grid learning_rate \
+-params_grid exp_coef triplet_loss_margin \
+-datasource_exclude_train_class_ids 2 \
 -triplet_positives 3 \
 -optimizer adam \
--learning_rate 1e-4 1e-3 1e-2 1e-5 \
+-learning_rate 1e-3 \
 -embedding_size 32 \
--embedding_function tanh \
+-embedding_function none \
 -suffix_affine_layers 2 \
 -suffix_affine_layers_hidden 256 \
 -conv_expansion_rate 2 \
@@ -54,16 +55,17 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -conv_resnet_layers 2 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_loss simple \
+-exp_coef 2.0 4.0 6.0 \
+-triplet_loss exp2 \
 -coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
--triplet_loss_margin 0.2 \
--filter_samples easy \
+-triplet_loss_margin 0.1 0.2 \
+-filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_sampler triplet_sampler_hard_3 \
 -model model_pink_skateboard \
 -datasource datasource_pytorch \
--early_stopping_patience 20 \
+-early_stopping_patience 5 \
 -epochs_count 20 -is_hpc True \
 -is_quick_test False \
 -single_task False

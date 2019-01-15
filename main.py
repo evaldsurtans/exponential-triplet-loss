@@ -73,6 +73,7 @@ parser.add_argument('-triplet_sampler', default='triplet_sampler_hard', type=str
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
 parser.add_argument('-datasource_type', default='minst', type=str) # fassion_minst minst
+parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 
 parser.add_argument('-epochs_count', default=10, type=int)
 
@@ -153,6 +154,10 @@ tmp = [
     'test_count_negatives',
     'train_count_positives',
     'train_count_negatives',
+    'test_count_positives_all',
+    'test_count_negatives_all',
+    'train_count_positives_all',
+    'train_count_negatives_all',
     'test_loss',
     'train_loss',
     'avg_epoch_time']
@@ -186,6 +191,10 @@ tmp = [
     'test_count_negatives',
     'train_count_positives',
     'train_count_negatives',
+    'test_count_positives_all',
+    'test_count_negatives_all',
+    'train_count_positives_all',
+    'train_count_negatives_all',
     'test_loss',
     'train_loss',
     'epoch_time',
@@ -290,14 +299,37 @@ def forward(batch):
 
     sampled = triplet_sampler.sample_batch(output, y, margin_distance)
 
-    max_distance = np.max(sampled['negatives_dist_all'].data.numpy())
-
     if args.triplet_loss == 'exp2':
         #Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
-        loss = (torch.exp(args.exp_coef * sampled['positives_dist']/max_distance) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(args.exp_coef * (max_distance-sampled['negatives_dist'])/max_distance) - 1.0)
+        loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
+               (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist'])/max_distance)) - 1.0)
 
-    if args.triplet_loss == 'exp1':
+    elif args.triplet_loss == 'exp2_neg_all':
+        #Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
+        loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
+               (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)) - 1.0)
+
+    elif args.triplet_loss == 'ratio':
+        # exp_coef for cosine distance - could be dynamic here
+        # max 1.0 => 4.0
+        # 2.0 => 2.0
+        # 4.0 => 1.0
+        pos_part = torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']))
+        neg_part = torch.exp(args.exp_coef * torch.mean(sampled['negatives_dist']))
+        div_part = pos_part + neg_part
+        loss = (pos_part/div_part)**2 + (1.0 - (neg_part/div_part)**2)
+
+    elif args.triplet_loss == 'ratio_neg_all':
+        # exp_coef for cosine distance - could be dynamic here
+        # max 1.0 => 4.0
+        # 2.0 => 2.0
+        # 4.0 => 1.0
+        pos_part = torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']))
+        neg_part = torch.exp(args.exp_coef * torch.mean(sampled['negatives_dist_all_filtred']))
+        div_part = pos_part + neg_part
+        loss = (pos_part/div_part)**2 + (1.0 - (neg_part/div_part)**2)
+
+    elif args.triplet_loss == 'exp1':
         loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
                (args.coef_loss_neg * torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0))) - 1.0)
     elif args.triplet_loss == 'exp1_neg_all':
@@ -331,11 +363,11 @@ def forward(batch):
     elif args.triplet_loss == 'standard':
         delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist']) + margin_distance
         loss = torch.clamp(delta, min=0)
-    elif args.triplet_loss == 'standard_all':
+    elif args.triplet_loss == 'standard_neg_all':
         delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist_all_filtred']) + margin_distance
         loss = torch.clamp(delta, min=0)
     elif args.triplet_loss == 'lossless':
-        loss = -torch.mean(torch.log10(1e-7 + 1.0 - sampled['positives_dist'] / args.lossless_beta)) - torch.mean(torch.log10(1e-7 + 1.0 - (2.0 - sampled['negatives_dist']) / args.lossless_beta))
+        loss = -torch.mean(torch.log10(1e-7 + 1.0 - sampled['positives_dist'] / args.lossless_beta)) - torch.mean(torch.log10(1e-7 + 1.0 - (args.embedding_size - sampled['negatives_dist']) / args.lossless_beta))
         # Where N is the number of dimensions (Number of output of your network; Number of features for your embedding)
         # TODO
     elif args.triplet_loss == 'lifted':
@@ -391,6 +423,10 @@ state = {
     'train_count_negatives': -1,
     'test_count_positives': -1,
     'test_count_negatives': -1,
+    'train_count_positives_all': -1,
+    'train_count_negatives_all': -1,
+    'test_count_positives_all': -1,
+    'test_count_negatives_all': -1,
 }
 avg_time_epochs = []
 time_epoch = time.time()
@@ -422,6 +458,11 @@ meters = dict(
     train_count_negatives = tnt.meter.AverageValueMeter(),
     test_count_positives = tnt.meter.AverageValueMeter(),
     test_count_negatives = tnt.meter.AverageValueMeter(),
+
+    train_count_positives_all = tnt.meter.AverageValueMeter(),
+    train_count_negatives_all = tnt.meter.AverageValueMeter(),
+    test_count_positives_all = tnt.meter.AverageValueMeter(),
+    test_count_negatives_all = tnt.meter.AverageValueMeter(),
 
     train_dist_positives_hard = tnt.meter.AverageValueMeter(),
     train_dist_negatives_hard = tnt.meter.AverageValueMeter(),
@@ -470,10 +511,14 @@ for epoch in range(1, args.epochs_count + 1):
             meters[f'{meter_prefix}_loss'].add(np.median(to_numpy(result['loss'])))
 
             if args.is_quick_test:
-                print(f"count pos:{float(result['positives_dist_all_filtred'].size(0))} neg:{float(result['negatives_dist_all_filtred'].size(0))}")
+                print(f"count pos:{float(result['positives_dist'].size(0))} neg:{float(result['negatives_dist'].size(0))}")
+                print(f"count all pos:{float(result['positives_dist_all_filtred'].size(0))} neg:{float(result['negatives_dist_all_filtred'].size(0))}")
 
-            meters[f'{meter_prefix}_count_positives'].add(float(result['positives_dist_all_filtred'].size(0)))
-            meters[f'{meter_prefix}_count_negatives'].add(float(result['negatives_dist_all_filtred'].size(0)))
+            meters[f'{meter_prefix}_count_positives'].add(float(result['positives_dist'].size(0)))
+            meters[f'{meter_prefix}_count_negatives'].add(float(result['negatives_dist'].size(0)))
+
+            meters[f'{meter_prefix}_count_positives_all'].add(float(result['positives_dist_all_filtred'].size(0)))
+            meters[f'{meter_prefix}_count_negatives_all'].add(float(result['negatives_dist_all_filtred'].size(0)))
 
             avg_positives_dist_all = np.average(to_numpy(result['positives_dist_all']))
             avg_negatives_dist_all = np.average(to_numpy(result['negatives_dist_all']))
@@ -554,6 +599,9 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_count_positives'] = meters[f'{meter_prefix}_count_positives'].value()[0]
         state[f'{meter_prefix}_count_negatives'] = meters[f'{meter_prefix}_count_negatives'].value()[0]
 
+        state[f'{meter_prefix}_count_positives_all'] = meters[f'{meter_prefix}_count_positives_all'].value()[0]
+        state[f'{meter_prefix}_count_negatives_all'] = meters[f'{meter_prefix}_count_negatives_all'].value()[0]
+
         state[f'{meter_prefix}_dist_delta'] = meters[f'{meter_prefix}_dist_negatives'].value()[0] - meters[f'{meter_prefix}_dist_positives'].value()[0]
 
         state[f'{meter_prefix}_dist_positives_hard'] = meters[f'{meter_prefix}_dist_positives_hard'].value()[0]
@@ -568,6 +616,9 @@ for epoch in range(1, args.epochs_count + 1):
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_positives', scalar_value=state[f'{meter_prefix}_count_positives'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_negatives', scalar_value=state[f'{meter_prefix}_count_negatives'], global_step=epoch)
+
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_positives_all', scalar_value=state[f'{meter_prefix}_count_positives_all'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_negatives_all', scalar_value=state[f'{meter_prefix}_count_negatives_all'], global_step=epoch)
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc_range', scalar_value=state[f'{meter_prefix}_acc_range'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_eer', scalar_value=state[f'{meter_prefix}_eer'], global_step=epoch)

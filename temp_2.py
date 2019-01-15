@@ -18,7 +18,7 @@ ax = fig.gca(projection='3d')
 
 max_dist = 2.0
 
-coef_exp = 4.0
+coef_exp = 2.0
 neg_coef = 1.0
 
 
@@ -38,7 +38,7 @@ neg, pos = np.meshgrid(neg, pos)
 #Z = np.exp(pos) - 1.0 + np.exp(max_dist - neg) - 1.0
 
 # fixed
-Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
+#Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
 
 
 
@@ -54,6 +54,13 @@ Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist -
 
 # ratio loss
 #Z = (np.exp(pos)/(np.exp(pos)+np.exp(neg)))**2 + (1.0 - (np.exp(neg)/(np.exp(pos)+np.exp(neg)))**2)
+
+#Z = (np.exp(coef_exp*pos)/(np.exp(coef_exp*pos)+np.exp(coef_exp*neg)))**2 + (1.0 - (np.exp(coef_exp*neg)/(np.exp(coef_exp*pos)+np.exp(coef_exp*neg)))**2)
+
+part_pos = np.exp(coef_exp*pos)
+part_neg = np.exp(coef_exp*neg)
+part_div = part_pos + part_neg
+Z = (part_pos/part_div)**2 + (1.0 - (part_neg/part_div)**2)
 
 # Plot the surface.
 surf = ax.plot_surface(neg, pos, Z, cmap=cm.coolwarm,

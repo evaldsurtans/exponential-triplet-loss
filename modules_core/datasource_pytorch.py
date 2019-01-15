@@ -76,12 +76,20 @@ class Dataset(torch.utils.data.dataset.Dataset):
             )
 
         self.classes = self.dataset.test_labels if is_test_data else self.dataset.train_labels
-        self.classes = np.arange(np.max(self.classes.numpy()) + 1, dtype=np.int)
+        self.classes = np.arange(np.max(self.classes.numpy()) + 1).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for img, label_idx in self.dataset:
-            groups[label_idx]['samples'].append(img)
+            groups[int(label_idx)]['samples'].append(img)
 
+        if not is_test_data:
+            ids = self.args.datasource_exclude_train_class_ids[:]
+            ids = sorted(ids, reverse=True)
+            for remove_id in ids:
+                del self.classes[remove_id]
+                del groups[remove_id]
+
+        self.classes = np.array(self.classes, dtype=np.int)
         self.size_samples = 0
         for idx, group in enumerate(groups):
             samples = group['samples']
