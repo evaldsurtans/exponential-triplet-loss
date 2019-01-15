@@ -39,10 +39,10 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
 -report test_14_more \
 -batch_size 114 \
--params_grid triplet_loss \
+-params_grid learning_rate \
 -triplet_positives 3 \
 -optimizer adam \
--learning_rate 1e-4 \
+-learning_rate 1e-4 1e-3 1e-2 1e-5 \
 -embedding_size 32 \
 -embedding_function tanh \
 -suffix_affine_layers 2 \
@@ -54,7 +54,7 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -conv_resnet_layers 2 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_loss simple exp1 exp3_abs smooth5 smooth6 exp3_abs_neg_all smooth5_neg_all smooth6_neg_all lossless \
+-triplet_loss simple \
 -coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
 -triplet_loss_margin 0.2 \
