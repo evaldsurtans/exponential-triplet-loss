@@ -56,7 +56,7 @@ class TripletSampler(object):
 
         return torch.stack(distances_batch)
 
-    def sample_batch(self, output, y, margin):
+    def sample_batch(self, output, y, margin, max_distance=2.0):
 
         positves_pairs = []
         negatives_pairs = []
@@ -88,8 +88,8 @@ class TripletSampler(object):
                     if idx_positive > idx_anchor:
                         positives_dist_all.append(anchor_distances[idx_positive])
 
-                    if 'abs_margin' in self.args.filter_samples:
-                        if anchor_distances[idx_positive] <= margin:
+                    if 'abs_margin' in self.args.filter_samples or 'abs_margin_asym' in self.args.filter_samples:
+                        if anchor_distances[idx_positive]/max_distance <= margin:
                             continue
 
                     if idx_positive > idx_anchor:
@@ -116,8 +116,8 @@ class TripletSampler(object):
                         # 114/3 = 38 => 3×38!/((38−2)!×2!) = 2109
                         negatives_dist_all.append(anchor_distances[idx_negative])
 
-                    if 'abs_margin' in self.args.filter_samples:
-                        if 2.0 - anchor_distances[idx_negative] <= margin:
+                    if 'abs_margin' in self.args.filter_samples or 'abs_margin_asym' in self.args.filter_samples:
+                        if (max_distance - anchor_distances[idx_negative])/max_distance <= margin:
                             continue
 
                     if 'hard' in self.args.filter_samples or 'semi_hard' in self.args.filter_samples:
@@ -141,27 +141,15 @@ class TripletSampler(object):
                         negative_dist = anchor_distances[idx_negative]
                         negative = output[idx_negative]
 
-            # if 'hard' in self.args.filter_samples or 'semi_hard' in self.args.filter_samples:
-            #     if negative is not None and positive is not None:
-            #         if positive_dist + margin <= negative_dist:
-            #             print('violate hard')
-            #             continue # skip violated pair
-            #     else:
-            #         logging.error('missing pair')
-            #         exit()
-            #
-            # if 'semi_hard' in self.args.filter_samples:
-            #     if negative is not None and positive is not None:
-            #         if negative_dist <= positive_dist:
-            #             print('violate semi')
-            #             continue # skip violated pair
-            #     else:
-            #         logging.error('missing pair')
-            #         exit()
-
-            if negative is not None and positive is not None:
-                negatives_dist.append(negative_dist)
-                positives_dist.append(positive_dist)
+            if 'abs_margin_asym' in self.args.filter_samples:
+                if negative is not None:
+                    negatives_dist.append(negative_dist)
+                if positive is not None:
+                    positives_dist.append(positive_dist)
+            else:
+                if negative is not None and positive is not None:
+                    negatives_dist.append(negative_dist)
+                    positives_dist.append(positive_dist)
 
             anchors.append(anchor)
 
@@ -170,23 +158,27 @@ class TripletSampler(object):
             if negative is not None:
                 negatives_pairs.append((anchor_y, negative_y)) # must be from different y classes
 
+        loss_shape_zeros = 0
+        if 'abs_margin_asym' in self.args.filter_samples:
+            loss_shape_zeros = 1
+
         if len(positives_dist) == 0:
-            positives_dist = torch.zeros((0,)).to(self.args.device)
+            positives_dist = torch.zeros((loss_shape_zeros,)).to(self.args.device)
         else:
             positives_dist = torch.stack(positives_dist)
 
         if len(positives_dist_all_filtred) == 0:
-            positives_dist_all_filtred = torch.zeros((0,)).to(self.args.device)
+            positives_dist_all_filtred = torch.zeros((loss_shape_zeros,)).to(self.args.device)
         else:
             positives_dist_all_filtred = torch.stack(positives_dist_all_filtred)
 
         if len(negatives_dist) == 0:
-            negatives_dist = torch.zeros((0,)).to(self.args.device)
+            negatives_dist = torch.zeros((loss_shape_zeros,)).to(self.args.device)
         else:
             negatives_dist = torch.stack(negatives_dist)
 
         if len(negatives_dist_all_filtred) == 0:
-            negatives_dist_all_filtred = torch.zeros((0,)).to(self.args.device)
+            negatives_dist_all_filtred = torch.zeros((loss_shape_zeros,)).to(self.args.device)
         else:
             negatives_dist_all_filtred = torch.stack(negatives_dist_all_filtred)
 

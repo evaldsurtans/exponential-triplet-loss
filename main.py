@@ -291,28 +291,28 @@ def forward(batch):
     else:
         output = model.forward(x)
 
-    max_distance = 2.0
+    max_distance = 2.0 # cosine distance
 
     if args.is_triplet_loss_margin_auto:
         margin_distance = max_distance / len(data_loader_train.dataset.classes)
     else:
         margin_distance = args.triplet_loss_margin
 
-    sampled = triplet_sampler.sample_batch(output, y, margin_distance)
+    sampled = triplet_sampler.sample_batch(output, y, margin_distance, max_distance)
 
     if args.triplet_loss == 'exp2':
         loss = (torch.exp(args.exp_coef *
                           torch.mean(
                               torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0))) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(args.exp_coef *
+               (args.coef_loss_neg * (torch.exp(args.exp_coef *
                                                torch.mean(
-                                                   torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0))) - 1.0)
+                                                   torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0))) - 1.0))
 
     if args.triplet_loss == 'exp2_pairs':
         loss = torch.mean((torch.exp(args.exp_coef *
                                      torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0)) - 1.0) +
-                          (args.coef_loss_neg * torch.exp(args.exp_coef *
-                                                          torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0)) - 1.0))
+                          (args.coef_loss_neg * (torch.exp(args.exp_coef *
+                                                          torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0)) - 1.0)))
 
     # todo fix clamp
     elif args.triplet_loss == 'exp2_neg_all':
@@ -556,14 +556,12 @@ for epoch in range(1, args.epochs_count + 1):
 
         histogram_bins = 'auto'
         #histogram_bins = 'doane'
-        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_all_{meter_prefix}', epoch)
-        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_hard), np.array(hist_negatives_dist_hard), f'hist_hard_{meter_prefix}', epoch)
 
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_positives', np.array(hist_positives_dist), epoch, bins=histogram_bins)
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_negatives', np.array(hist_negatives_dist), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives', np.array(hist_positives_dist), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives', np.array(hist_negatives_dist), epoch, bins=histogram_bins)
 
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_positives_hard', np.array(hist_positives_dist_hard), epoch, bins=histogram_bins)
-        tensorboard_writer.add_histogram(f'{meter_prefix}_dist_negatives_hard', np.array(hist_negatives_dist_hard), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives_hard', np.array(hist_positives_dist_hard), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives_hard', np.array(hist_negatives_dist_hard), epoch, bins=histogram_bins)
 
         predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range')
 
@@ -618,6 +616,8 @@ for epoch in range(1, args.epochs_count + 1):
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_delta', scalar_value=state[f'{meter_prefix}_dist_delta'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_positives', scalar_value=state[f'{meter_prefix}_dist_positives'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_negatives', scalar_value=state[f'{meter_prefix}_dist_negatives'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_positives_hard', scalar_value=state[f'{meter_prefix}_dist_positives_hard'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_negatives_hard', scalar_value=state[f'{meter_prefix}_dist_negatives_hard'], global_step=epoch)
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_positives', scalar_value=state[f'{meter_prefix}_count_positives'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_negatives', scalar_value=state[f'{meter_prefix}_count_negatives'], global_step=epoch)

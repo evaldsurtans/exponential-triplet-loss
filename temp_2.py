@@ -19,10 +19,6 @@ ax = fig.gca(projection='3d')
 min_dist = 0.0
 max_dist = 2.0
 
-coef_exp = 2.0
-neg_coef = 1.0
-
-
 neg = np.arange(min_dist, max_dist, (max_dist-min_dist)/100)
 pos = np.arange(min_dist, max_dist, (max_dist-min_dist)/100)
 
@@ -36,17 +32,42 @@ neg, pos = np.meshgrid(neg, pos)
 
 
 # margin loss standard triplet loss
-margin = 0.5
-Z = np.maximum(np.zeros_like(neg), pos - neg + margin)
+#margin = 0.5
+#Z = np.maximum(np.zeros_like(neg), pos - neg + margin)
+
+#exp2
+margin = 0.2
+coef_exp = 3.0
+neg_coef = 1.5
+Z = np.exp(coef_exp *
+           np.maximum(np.zeros_like(pos), (pos/max_dist) - margin)) - 1.0 + \
+    neg_coef * (np.exp(coef_exp *
+                       np.maximum(np.zeros_like(pos), ((max_dist - neg)/max_dist) - margin)) - 1.0)
+
+loss_min = np.min(Z)
+loss_max = np.max(Z)
+col_min = float('Inf')
+col_max = float('-Inf')
 
 for i in range(pos.shape[0]):
     for j in range(pos.shape[1]):
         each_pos = pos[i, j]
         each_neg = neg[i, j]
 
-        # semi-hard
-        if each_pos + margin <= each_neg or each_neg <= each_pos:
-            Z[i,j] = -1
+        # hard
+        # if each_pos + margin <= each_neg:
+        #     Z[i,j] = np.nan
+        # semi
+        # if each_neg <= each_pos:
+        #     Z[i,j] = np.nan
+
+        # abs_margins
+        if each_pos/max_dist - margin <= 0 and (max_dist - each_neg)/max_dist - margin < 0:
+            Z[i,j] = np.nan
+
+        if Z[i,j] != np.nan:
+            col_min = min(col_min, Z[i,j])
+            col_max = max(col_max, Z[i,j])
 
 # buggy
 #Z = np.exp(pos) - 1.0 + np.exp(max_dist - neg) - 1.0
@@ -78,7 +99,8 @@ part_div = part_pos + part_neg
 
 # Plot the surface.
 surf = ax.plot_surface(neg, pos, Z, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
+                       linewidth=0, antialiased=False, vmin=col_min, vmax=col_max)
+ax.set_zlim(loss_min, loss_max)
 
 ax.set_xlabel('neg')
 ax.set_ylabel('pos')
