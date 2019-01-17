@@ -53,34 +53,69 @@ class Dataset(torch.utils.data.dataset.Dataset):
         path_data = f'{self.args.path_data}/{self.args.datasource_type}'
         FileUtils.createDir(path_data)
 
-        if self.args.datasource_type == 'fassion_minst':
-            self.dataset = torchvision.datasets.FashionMNIST(
-                path_data,
-                download=True,
-                train=not is_test_data,
-                transform=torchvision.transforms.ToTensor()
-            )
-        elif self.args.datasource_type == 'minst':
-            self.dataset = torchvision.datasets.MNIST(
-                path_data,
-                download=True,
-                train=not is_test_data,
-                transform=torchvision.transforms.ToTensor()
-            )
-        elif self.args.datasource_type == 'eminst': # extended minst https://arxiv.org/pdf/1702.05373.pdf
-            self.dataset = torchvision.datasets.EMNIST(
-                path_data,
-                download=True,
-                train=not is_test_data,
-                transform=torchvision.transforms.ToTensor()
-            )
+        if not os.path.exists(f'{self.args.path_data}/{self.args.datasource_type}/lock'):
+            with open(f'{self.args.path_data}/{self.args.datasource_type}/lock', 'w') as fp_download_lock:
+                fp_download_lock.write('')
+            time.sleep(1.0)
+
+        with open(f'{self.args.path_data}/{self.args.datasource_type}/lock', 'r+') as fp_download_lock:
+            FileUtils.lock_file(fp_download_lock)
+
+            if self.args.datasource_type == 'fassion_minst':
+                self.dataset = torchvision.datasets.FashionMNIST(
+                    path_data,
+                    download=True,
+                    train=not is_test_data,
+                    transform=torchvision.transforms.ToTensor()
+                )
+            elif self.args.datasource_type == 'minst':
+                self.dataset = torchvision.datasets.MNIST(
+                    path_data,
+                    download=True,
+                    train=not is_test_data,
+                    transform=torchvision.transforms.ToTensor()
+                )
+            elif self.args.datasource_type == 'cifar_10':
+                self.dataset = torchvision.datasets.CIFAR10(
+                    path_data,
+                    download=True,
+                    train=not is_test_data,
+                    transform=torchvision.transforms.Compose([
+                        torchvision.transforms.Grayscale(),
+                        torchvision.transforms.ToTensor()
+                    ])
+                )
+            elif self.args.datasource_type == 'cifar_100':
+                self.dataset = torchvision.datasets.CIFAR100(
+                    path_data,
+                    download=True,
+                    train=not is_test_data,
+                    transform=torchvision.transforms.Compose([
+                        torchvision.transforms.Grayscale(),
+                        torchvision.transforms.ToTensor()
+                    ])
+                )
+            elif self.args.datasource_type == 'eminst': # extended minst https://arxiv.org/pdf/1702.05373.pdf
+                self.dataset = torchvision.datasets.EMNIST(
+                    path_data,
+                    download=True,
+                    train=not is_test_data,
+                    transform=torchvision.transforms.ToTensor()
+                )
+
+            FileUtils.unlock_file(fp_download_lock)
+
 
         self.classes = self.dataset.test_labels if is_test_data else self.dataset.train_labels
-        self.classes = np.arange(np.max(self.classes.numpy()) + 1).tolist()
+        if isinstance(self.classes, torch.Tensor):
+            self.classes = self.classes.numpy()
+        self.classes = np.arange(np.max(self.classes) + 1).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for img, label_idx in self.dataset:
             groups[int(label_idx)]['samples'].append(img)
+
+        args.input_size = img.size(1) # channels, w, h
 
         if not is_test_data:
             ids = [int(it) for it in self.args.datasource_exclude_train_class_ids]
@@ -88,15 +123,25 @@ class Dataset(torch.utils.data.dataset.Dataset):
             for remove_id in ids:
                 del self.classes[remove_id]
                 del groups[remove_id]
+        else:
+            if len(self.args.datasource_include_test_class_ids):
+                ids = set(self.classes) - set([int(it) for it in self.args.datasource_include_test_class_ids])
+                ids = list(ids)
+                ids = sorted(ids, reverse=True)
+                for remove_id in ids:
+                    del self.classes[remove_id]
+                    del groups[remove_id]
 
         self.classes = np.array(self.classes, dtype=np.int)
         self.size_samples = 0
         for idx, group in enumerate(groups):
             samples = group['samples']
             self.size_samples += int(len(samples) / self.args.triplet_positives)
-            logging.info(f'group:{idx} samples:{len(samples)}')
+            #logging.info(f'group:{idx} samples:{len(samples)}')
             random.shuffle(samples)
         self.groups = groups
+
+        logging.info(f'{"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
 
         if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:
             logging.error(f'batch does not accommodate triplet_positives {self.args.batch_size} {self.args.triplet_positives}')
@@ -141,8 +186,6 @@ class Dataset(torch.utils.data.dataset.Dataset):
 
 
 def get_data_loaders(args):
-
-    args.input_size = 28
 
     dataset_train = Dataset(args, is_test_data=False)
     dataset_test = Dataset(args, is_test_data=True)

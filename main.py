@@ -74,6 +74,7 @@ parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
 parser.add_argument('-datasource_type', default='minst', type=str) # fassion_minst minst
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
+parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 
 parser.add_argument('-epochs_count', default=10, type=int)
 
@@ -115,8 +116,8 @@ parser.add_argument('-is_conv_max_pool', default=False, type=lambda x: (str(x).l
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
 parser.add_argument('-early_stopping_patience', default=3, type=int)
-parser.add_argument('-early_stopping_param', default='train_loss', type=str)
-parser.add_argument('-early_stopping_param_coef', default=-1.0, type=float)
+parser.add_argument('-early_stopping_param', default='train_acc_range', type=str)
+parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -300,17 +301,25 @@ def forward(batch):
     sampled = triplet_sampler.sample_batch(output, y, margin_distance)
 
     if args.triplet_loss == 'exp2':
-        loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist'])/max_distance)) - 1.0)
+        loss = (torch.exp(args.exp_coef *
+                          torch.mean(
+                              torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0))) - 1.0) + \
+               (args.coef_loss_neg * torch.exp(args.exp_coef *
+                                               torch.mean(
+                                                   torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0))) - 1.0)
 
     if args.triplet_loss == 'exp2_pairs':
-        loss = torch.mean((torch.exp(args.exp_coef * sampled['positives_dist']/max_distance) - 1.0) +
-                          (args.coef_loss_neg * torch.exp(args.exp_coef * (max_distance-sampled['negatives_dist'])/max_distance) - 1.0))
+        loss = torch.mean((torch.exp(args.exp_coef *
+                                     torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0)) - 1.0) +
+                          (args.coef_loss_neg * torch.exp(args.exp_coef *
+                                                          torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0)) - 1.0))
 
+    # todo fix clamp
     elif args.triplet_loss == 'exp2_neg_all':
         loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
                (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)) - 1.0)
 
+    # todo fix mean
     elif args.triplet_loss == 'ratio':
         # exp_coef for cosine distance - could be dynamic here
         # max 1.0 => 4.0
@@ -321,6 +330,7 @@ def forward(batch):
         div_part = pos_part + neg_part
         loss = (pos_part/div_part)**2 + (1.0 - (neg_part/div_part)**2)
 
+    # todo fix mean
     elif args.triplet_loss == 'ratio_neg_all':
         # exp_coef for cosine distance - could be dynamic here
         # max 1.0 => 4.0
@@ -330,20 +340,6 @@ def forward(batch):
         neg_part = torch.exp(args.exp_coef * torch.mean(sampled['negatives_dist_all_filtred']))
         div_part = pos_part + neg_part
         loss = (pos_part/div_part)**2 + (1.0 - (neg_part/div_part)**2)
-
-    elif args.triplet_loss == 'exp1':
-        loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist']-margin_distance, 0))) - 1.0)
-    elif args.triplet_loss == 'exp1_neg_all':
-        loss = (torch.exp(torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0))) - 1.0) + \
-               args.coef_loss_neg * (torch.exp(torch.mean(torch.clamp(max_distance-sampled['negatives_dist_all_filtred']-margin_distance, 0))) - 1.0)
-
-    elif args.triplet_loss == 'exp3_abs': # abs and smooth loss idea to encourage to mantain variance instead of single point collapse
-        loss = (torch.exp(torch.mean(torch.abs(sampled['positives_dist']-margin_distance))) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(torch.mean(torch.abs(max_distance-sampled['negatives_dist_filtred']-margin_distance))) - 1.0)
-    elif args.triplet_loss == 'exp3_abs_neg_all':
-        loss = (torch.exp(torch.mean(torch.abs(sampled['positives_dist']-margin_distance))) - 1.0) + \
-               args.coef_loss_neg * (torch.exp(torch.mean(torch.abs(max_distance-sampled['negatives_dist_all_filtred']-margin_distance))) - 1.0)
 
     elif args.triplet_loss == 'smooth5':
         loss = F.smooth_l1_loss(torch.clamp(sampled['positives_dist']-margin_distance, 0), torch.zeros(sampled['positives_dist'].size()).to(args.device), reduction='mean') + \
@@ -358,9 +354,6 @@ def forward(batch):
     elif args.triplet_loss == 'smooth6_neg_all':
         loss = F.smooth_l1_loss(sampled['positives_dist'], torch.ones(sampled['positives_dist'].size()).to(args.device) * margin_distance, reduction='mean') + \
                  args.coef_loss_neg * F.smooth_l1_loss(max_distance-sampled['negatives_dist_all_filtred'], torch.ones(sampled['negatives_dist_all_filtred'].size()).to(args.device) * margin_distance, reduction='mean')
-
-    elif args.triplet_loss == 'simple':
-        loss = torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0)) + torch.mean(torch.clamp(max_distance - sampled['negatives_dist']-margin_distance, 0))
 
     elif args.triplet_loss == 'standard':
         delta = sampled['positives_dist'] - sampled['negatives_dist'] + margin_distance
@@ -547,11 +540,15 @@ for epoch in range(1, args.epochs_count + 1):
                 hist_negatives_dist_hard.append(avg_negatives_dist_hard)
                 meters[f'{meter_prefix}_dist_negatives_hard'].add(avg_negatives_dist_hard)
 
-            output_embeddings += to_numpy(result['output'].to('cpu')).tolist()
+            output = to_numpy(result['output'].to('cpu')).tolist()
+            output_embeddings += output
             output_y_images += to_numpy(result['x']).tolist()
+
             y = to_numpy(result['y']).tolist()
             output_y += y
             output_y_labels += [data_loader_test.dataset.classes[it] for it in y]
+
+            print(f'output: {len(output)} y: {len(y)} pairs: {result["negatives_dist"].size(0)}')
 
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 2:
