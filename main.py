@@ -123,7 +123,7 @@ parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (s
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 # https://omoindrot.github.io/triplet-loss
-parser.add_argument('-filter_samples', nargs='*', default=['none']) #easy semi none
+parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
 
 args, args_other = parser.parse_known_args()
 
@@ -295,17 +295,19 @@ def forward(batch):
     if args.is_triplet_loss_margin_auto:
         margin_distance = max_distance / len(data_loader_train.dataset.classes)
     else:
-        margin_distance = (args.triplet_loss_margin * max_distance)
+        margin_distance = args.triplet_loss_margin
 
     sampled = triplet_sampler.sample_batch(output, y, margin_distance)
 
     if args.triplet_loss == 'exp2':
-        #Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
         loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
                (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist'])/max_distance)) - 1.0)
 
+    if args.triplet_loss == 'exp2_pairs':
+        loss = torch.mean((torch.exp(args.exp_coef * sampled['positives_dist']/max_distance) - 1.0) +
+                          (args.coef_loss_neg * torch.exp(args.exp_coef * (max_distance-sampled['negatives_dist'])/max_distance) - 1.0))
+
     elif args.triplet_loss == 'exp2_neg_all':
-        #Z = np.exp(coef_exp*pos/max_dist) - 1.0 + neg_coef * np.exp(coef_exp*(max_dist - neg)/max_dist) - 1.0
         loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
                (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)) - 1.0)
 
@@ -361,11 +363,11 @@ def forward(batch):
         loss = torch.mean(torch.clamp(sampled['positives_dist']-margin_distance, 0)) + torch.mean(torch.clamp(max_distance - sampled['negatives_dist']-margin_distance, 0))
 
     elif args.triplet_loss == 'standard':
-        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist']) + margin_distance
-        loss = torch.clamp(delta, min=0)
+        delta = sampled['positives_dist'] - sampled['negatives_dist'] + margin_distance
+        loss = torch.mean(torch.clamp(delta, min=0))
     elif args.triplet_loss == 'standard_neg_all':
-        delta = torch.mean(sampled['positives_dist']) - torch.mean(sampled['negatives_dist_all_filtred']) + margin_distance
-        loss = torch.clamp(delta, min=0)
+        delta = sampled['positives_dist'] - sampled['negatives_dist_all_filtred'] + margin_distance
+        loss = torch.mean(torch.clamp(delta, min=0))
     elif args.triplet_loss == 'lossless':
         loss = -torch.mean(torch.log10(1e-7 + 1.0 - sampled['positives_dist'] / args.lossless_beta)) - torch.mean(torch.log10(1e-7 + 1.0 - (args.embedding_size - sampled['negatives_dist']) / args.lossless_beta))
         # Where N is the number of dimensions (Number of output of your network; Number of features for your embedding)

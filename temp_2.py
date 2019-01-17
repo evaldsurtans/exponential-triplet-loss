@@ -16,14 +16,15 @@ ax = fig.gca(projection='3d')
 #neg = np.arange(0, 10, 0.25)
 #pos = np.arange(0, 10, 0.25)
 
+min_dist = 0.0
 max_dist = 2.0
 
 coef_exp = 2.0
 neg_coef = 1.0
 
 
-neg = np.arange(0, max_dist, max_dist/100)
-pos = np.arange(0, max_dist, max_dist/100)
+neg = np.arange(min_dist, max_dist, (max_dist-min_dist)/100)
+pos = np.arange(min_dist, max_dist, (max_dist-min_dist)/100)
 
 #max_dist = 2.0
 
@@ -31,8 +32,21 @@ neg, pos = np.meshgrid(neg, pos)
 #R = np.sqrt(neg**2 + pos**2)
 #Z = np.sin(R)
 
-# margin loss
-#Z = np.maximum(np.zeros_like(neg), pos - neg + 0.2)
+
+
+
+# margin loss standard triplet loss
+margin = 0.5
+Z = np.maximum(np.zeros_like(neg), pos - neg + margin)
+
+for i in range(pos.shape[0]):
+    for j in range(pos.shape[1]):
+        each_pos = pos[i, j]
+        each_neg = neg[i, j]
+
+        # semi-hard
+        if each_pos + margin <= each_neg or each_neg <= each_pos:
+            Z[i,j] = -1
 
 # buggy
 #Z = np.exp(pos) - 1.0 + np.exp(max_dist - neg) - 1.0
@@ -60,7 +74,7 @@ neg, pos = np.meshgrid(neg, pos)
 part_pos = np.exp(coef_exp*pos)
 part_neg = np.exp(coef_exp*neg)
 part_div = part_pos + part_neg
-Z = (part_pos/part_div)**2 + (1.0 - (part_neg/part_div)**2)
+#Z = (part_pos/part_div)**2 + (1.0 - (part_neg/part_div)**2)
 
 # Plot the surface.
 surf = ax.plot_surface(neg, pos, Z, cmap=cm.coolwarm,

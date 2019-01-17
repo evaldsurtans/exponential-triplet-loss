@@ -88,8 +88,8 @@ class TripletSampler(object):
                     if idx_positive > idx_anchor:
                         positives_dist_all.append(anchor_distances[idx_positive])
 
-                    if 'easy' in self.args.filter_samples:
-                        if anchor_distances[idx_positive] < margin:
+                    if 'abs_margin' in self.args.filter_samples:
+                        if anchor_distances[idx_positive] <= margin:
                             continue
 
                     if idx_positive > idx_anchor:
@@ -116,8 +116,8 @@ class TripletSampler(object):
                         # 114/3 = 38 => 3×38!/((38−2)!×2!) = 2109
                         negatives_dist_all.append(anchor_distances[idx_negative])
 
-                    if 'easy' in self.args.filter_samples:
-                        if 2.0 - anchor_distances[idx_negative] < margin:
+                    if 'abs_margin' in self.args.filter_samples:
+                        if 2.0 - anchor_distances[idx_negative] <= margin:
                             continue
 
                     if idx_negative > idx_anchor:
@@ -131,10 +131,21 @@ class TripletSampler(object):
                         negative_dist = anchor_distances[idx_negative]
                         negative = output[idx_negative]
 
-            if 'semi' in self.args.filter_samples:
+            if 'hard' in self.args.filter_samples or 'semi_hard' in self.args.filter_samples:
                 if negative is not None and positive is not None:
-                    if positive_dist - negative_dist + margin < 0:
-                        continue
+                    if positive_dist + margin <= negative_dist:
+                        continue # skip violated pair
+                else:
+                    logging.error('missing pair')
+                    exit()
+
+            if 'semi_hard' in self.args.filter_samples:
+                if negative is not None and positive is not None:
+                    if negative_dist <= positive_dist:
+                        continue # skip violated pair
+                else:
+                    logging.error('missing pair')
+                    exit()
 
             if negative is not None:
                 negatives_dist.append(negative_dist)

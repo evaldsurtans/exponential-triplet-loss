@@ -83,7 +83,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             groups[int(label_idx)]['samples'].append(img)
 
         if not is_test_data:
-            ids = self.args.datasource_exclude_train_class_ids[:]
+            ids = [int(it) for it in self.args.datasource_exclude_train_class_ids]
             ids = sorted(ids, reverse=True)
             for remove_id in ids:
                 del self.classes[remove_id]
