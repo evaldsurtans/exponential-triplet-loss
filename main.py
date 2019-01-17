@@ -80,7 +80,7 @@ parser.add_argument('-epochs_count', default=10, type=int)
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
 parser.add_argument('-weight_decay', default=0, type=float)
-parser.add_argument('-batch_size', default=30, type=int)
+parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
 parser.add_argument('-triplet_loss', default='exp1', type=str)
@@ -364,7 +364,11 @@ def forward(batch):
 
     elif args.triplet_loss == 'standard':
         delta = sampled['positives_dist'] - sampled['negatives_dist'] + margin_distance
-        loss = torch.mean(torch.clamp(delta, min=0))
+        #print(f'samples: {delta.size(0)}')
+        if delta.size(0) == 0: # no valid triplets mined
+            loss = None
+        else:
+            loss = torch.mean(torch.clamp(delta, min=0))
     elif args.triplet_loss == 'standard_neg_all':
         delta = sampled['positives_dist'] - sampled['negatives_dist_all_filtred'] + margin_distance
         loss = torch.mean(torch.clamp(delta, min=0))
@@ -507,10 +511,12 @@ for epoch in range(1, args.epochs_count + 1):
             result = forward(batch)
 
             if data_loader == data_loader_train:
-                result['loss'].backward()
-                optimizer_func.step()
+                if result['loss'] is not None:
+                    result['loss'].backward()
+                    optimizer_func.step()
 
-            meters[f'{meter_prefix}_loss'].add(np.median(to_numpy(result['loss'])))
+            if result['loss'] is not None:
+                meters[f'{meter_prefix}_loss'].add(np.median(to_numpy(result['loss'])))
 
             if args.is_quick_test:
                 print(f"count pos:{float(result['positives_dist'].size(0))} neg:{float(result['negatives_dist'].size(0))}")
@@ -531,12 +537,12 @@ for epoch in range(1, args.epochs_count + 1):
             meters[f'{meter_prefix}_dist_positives'].add(avg_positives_dist_all)
             meters[f'{meter_prefix}_dist_negatives'].add(avg_negatives_dist_all)
 
-            if result['positives_dist'].size(0) > 1:
+            if result['positives_dist'].size(0) > 0:
                 avg_positives_dist_hard = np.average(to_numpy(result['positives_dist']))
                 meters[f'{meter_prefix}_dist_positives_hard'].add(avg_positives_dist_hard)
                 hist_positives_dist_hard.append(avg_positives_dist_hard)
 
-            if result['negatives_dist'].size(0) > 1:
+            if result['negatives_dist'].size(0) > 0:
                 avg_negatives_dist_hard = np.average(to_numpy(result['negatives_dist']))
                 hist_negatives_dist_hard.append(avg_negatives_dist_hard)
                 meters[f'{meter_prefix}_dist_negatives_hard'].add(avg_negatives_dist_hard)
