@@ -48,10 +48,12 @@ class TripletSampler(object):
 
             x1 = output[i, :].expand(batch_size, -1)
             x2 = output # whole batch
-            # bug DIM
-            distances = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1
-            # dot product ROUNDING PROBLEM IF 1.0 , need to be 1.00001
-            # result = 0 .. 2.0
+
+            if self.args.triplet_similarity == 'cos':
+                distances = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+            else:
+                distances = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
+
             distances_batch.append(distances)
 
         return torch.stack(distances_batch)
@@ -73,7 +75,11 @@ class TripletSampler(object):
 
         distances_batch = self.get_distances(output)
 
-        for idx_anchor in range(0, y.size(0), self.args.triplet_positives): #one negative per positives
+        step = self.args.triplet_positives
+        if self.args.triplet_sampler_var == 'hard':
+            step = self.args.triplet_positives
+
+        for idx_anchor in range(0, y.size(0), step): #one negative per positives
             anchor = output[idx_anchor]
             anchor_y = y[idx_anchor]
 
@@ -94,6 +100,7 @@ class TripletSampler(object):
 
                     if idx_positive > idx_anchor:
                         positives_dist_all_filtred.append(anchor_distances[idx_positive])
+
                     if positive is None:
                         positive_y = each_y
                         positive = output[idx_positive]
@@ -112,7 +119,6 @@ class TripletSampler(object):
                     if idx_negative > idx_anchor:
                         # n = n_same_class_triplet * n_classes! / ((n_classes - 2)! * 2!)
                         # 3×10!/((10−2)!×2!) when batch 30
-
                         # 114/3 = 38 => 3×38!/((38−2)!×2!) = 2109
                         negatives_dist_all.append(anchor_distances[idx_negative])
 

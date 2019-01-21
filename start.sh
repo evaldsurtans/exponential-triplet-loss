@@ -37,19 +37,24 @@ cd ~/Documents/fassion_minst/
 
 # -datasource_exclude_train_class_ids 2 \
 # -filter_samples none abs_margin \
+# 114
+# -params_grid learning_rate \
+# cifar_10
+#-datasource_type cifar_10 \
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report test_17_exp_pair_c \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cpu \
+-report test_19_rock_cifar \
 -batch_size 114 \
--params_grid triplet_loss_margin coef_loss_neg \
 -triplet_positives 3 \
 -optimizer adam \
--learning_rate 1e-3 \
--embedding_size 8 \
--embedding_function none \
+-params_grid learning_rate embedding_norm filter_samples \
+-learning_rate 1e-3 1e-4 \
+-datasource_type cifar_10 \
+-embedding_size 32 \
+-embedding_function tanh \
 -suffix_affine_layers 2 \
--suffix_affine_layers_hidden 256 \
+-suffix_affine_layers_hidden 512 \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 8 \
 -conv_first_kernel 7 \
@@ -58,19 +63,24 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -exp_coef 2.0 \
+-triplet_sampler_var hard \
 -triplet_loss exp2 \
--coef_loss_neg 1.0 1.5 \
+-coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
--triplet_loss_margin 0.4 0.3 0.2 \
--filter_samples abs_margin_asym \
+-triplet_loss_margin 0.2 \
+-embedding_norm l2 none \
+-triplet_similarity cos \
+-filter_samples none abs_margin_asym \
 -is_triplet_loss_margin_auto False \
--triplet_sampler triplet_sampler_hard_3 \
--model model_pink_skateboard \
+-triplet_sampler triplet_sampler_4 \
+-model model_pink_rock \
 -datasource datasource_pytorch \
--early_stopping_patience 3 \
--epochs_count 10 -is_hpc True \
+-early_stopping_patience 5 \
+-epochs_count 30 -is_hpc True \
 -is_quick_test False \
 -single_task False
+
+# euclidean
 
 # -triplet_loss exp1 standard standard2 lossless lifted lifted2 \
 # speaker_small_male_4000_log_dual_13

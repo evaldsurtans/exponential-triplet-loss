@@ -155,9 +155,11 @@ class Model(torch.nn.Module):
         output_sufix = self.layers_suffix_affine.forward(output_enc)
         output_emb = self.layers_embedding.forward(output_sufix)
 
-        # Important to normalize for consine similarity
-        norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()
-        output_norm = output_emb / norm
-        # check if normalized by torch.dot(a,a)
+        if self.args.embedding_norm == 'l2':
+            norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()
+            output_norm = output_emb / norm
+        else:
+            output_norm = output_emb
+
         return output_norm
 

@@ -31,12 +31,16 @@ def func_cosine_distance(vec1, vec2):
     dist = 1.0 - F.cosine_similarity(vec1, vec2)
     return dist
 
+def func_pairwise_distance(vec1, vec2):
+    dist = F.pairwise_distance(vec1, vec2)
+    return dist
+
 dim = 128
 a = torch.ones((1, dim))
 b = -torch.ones((1, dim))
 
-a = func1(a)
-b = func1(b)
+# a = func1(a)
+# b = func1(b)
 
 dist = func_cosine_distance(a, b)
 

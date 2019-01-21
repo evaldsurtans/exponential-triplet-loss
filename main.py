@@ -62,13 +62,17 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_pink_skateboard', type=str)
+parser.add_argument('-model', default='model_pink_rock', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
 
 parser.add_argument('-datasource', default='datasource_pytorch', type=str)
-parser.add_argument('-triplet_sampler', default='triplet_sampler_hard', type=str)
+parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
+parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
+# https://omoindrot.github.io/triplet-loss
+parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
+parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
@@ -123,9 +127,6 @@ parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
-# https://omoindrot.github.io/triplet-loss
-parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
-
 args, args_other = parser.parse_known_args()
 
 tmp = [
@@ -159,6 +160,8 @@ tmp = [
     'test_count_negatives_all',
     'train_count_positives_all',
     'train_count_negatives_all',
+    'test_negative_max',
+    'train_negative_max',
     'test_loss',
     'train_loss',
     'avg_epoch_time']
@@ -196,6 +199,8 @@ tmp = [
     'test_count_negatives_all',
     'train_count_positives_all',
     'train_count_negatives_all',
+    'test_negative_max',
+    'train_negative_max',
     'test_loss',
     'train_loss',
     'epoch_time',
@@ -314,10 +319,18 @@ def forward(batch):
                           (args.coef_loss_neg * (torch.exp(args.exp_coef *
                                                           torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0)) - 1.0)))
 
-    # todo fix clamp
     elif args.triplet_loss == 'exp2_neg_all':
-        loss = (torch.exp(args.exp_coef * torch.mean(sampled['positives_dist']/max_distance)) - 1.0) + \
-               (args.coef_loss_neg * torch.exp(args.exp_coef * torch.mean((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)) - 1.0)
+        loss = (torch.exp(args.exp_coef *
+                          torch.mean(
+                              torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0))) - 1.0) + \
+               (args.coef_loss_neg * (torch.exp(args.exp_coef *
+                                               torch.mean(
+                                                   torch.clamp(((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)-margin_distance, 0))) - 1.0))
+
+    elif args.triplet_loss == 'exp3_neg_all':
+        loss = torch.exp(args.exp_coef *
+                          torch.mean(
+                              torch.clamp(((max_distance-sampled['negatives_dist_all_filtred'])/max_distance)-margin_distance, 0))) - 1.0
 
     # todo fix mean
     elif args.triplet_loss == 'ratio':
@@ -426,6 +439,8 @@ state = {
     'train_count_negatives_all': -1,
     'test_count_positives_all': -1,
     'test_count_negatives_all': -1,
+    'test_negative_max': -1,
+    'train_negative_max': -1,
 }
 avg_time_epochs = []
 time_epoch = time.time()
@@ -497,6 +512,8 @@ for epoch in range(1, args.epochs_count + 1):
             model = model.eval()
             torch.set_grad_enabled(False)
 
+        negative_max = 0
+
         for batch in data_loader:
             optimizer_func.zero_grad()
             torch.set_grad_enabled(True)
@@ -522,7 +539,9 @@ for epoch in range(1, args.epochs_count + 1):
             meters[f'{meter_prefix}_count_negatives_all'].add(float(result['negatives_dist_all_filtred'].size(0)))
 
             avg_positives_dist_all = np.average(to_numpy(result['positives_dist_all']))
-            avg_negatives_dist_all = np.average(to_numpy(result['negatives_dist_all']))
+            np_negatives_dist_all = to_numpy(result['negatives_dist_all'])
+            negative_max = max(negative_max, np.max(np_negatives_dist_all))
+            avg_negatives_dist_all = np.average(np_negatives_dist_all)
 
             hist_positives_dist.append(avg_positives_dist_all)
             hist_negatives_dist.append(avg_negatives_dist_all)
@@ -548,8 +567,6 @@ for epoch in range(1, args.epochs_count + 1):
             output_y += y
             output_y_labels += [data_loader_test.dataset.classes[it] for it in y]
 
-            print(f'output: {len(output)} y: {len(y)} pairs: {result["negatives_dist"].size(0)}')
-
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 2:
                 break
@@ -562,6 +579,9 @@ for epoch in range(1, args.epochs_count + 1):
 
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives_hard', np.array(hist_positives_dist_hard), epoch, bins=histogram_bins)
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives_hard', np.array(hist_negatives_dist_hard), epoch, bins=histogram_bins)
+
+        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_{meter_prefix}_all', epoch)
+        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_hard), np.array(hist_negatives_dist_hard), f'hist_{meter_prefix}_hard', epoch)
 
         predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range')
 
@@ -586,6 +606,7 @@ for epoch in range(1, args.epochs_count + 1):
             metadata=output_y_labels,
             global_step=epoch, tag=f'{meter_prefix}_embeddings')
 
+        state[f'{meter_prefix}_negative_max'] = negative_max
         state[f'{meter_prefix}_acc_range'] = meters[f'{meter_prefix}_acc_range'].value()[0]
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc'])
         state[f'{meter_prefix}_eer'] = eer
@@ -624,6 +645,8 @@ for epoch in range(1, args.epochs_count + 1):
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_positives_all', scalar_value=state[f'{meter_prefix}_count_positives_all'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_count_negatives_all', scalar_value=state[f'{meter_prefix}_count_negatives_all'], global_step=epoch)
+
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_negative_max', scalar_value=state[f'{meter_prefix}_negative_max'], global_step=epoch)
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_acc_range', scalar_value=state[f'{meter_prefix}_acc_range'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_eer', scalar_value=state[f'{meter_prefix}_eer'], global_step=epoch)
