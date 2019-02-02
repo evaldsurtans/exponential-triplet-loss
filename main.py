@@ -62,7 +62,7 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_pink_rock', type=str)
+parser.add_argument('-model', default='model_7_bike', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
@@ -76,7 +76,7 @@ parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclid
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='minst', type=str) # fassion_minst minst
+parser.add_argument('-datasource_type', default='eminst', type=str) # fassion_minst minst
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 
@@ -88,19 +88,24 @@ parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
-parser.add_argument('-triplet_loss', default='exp1', type=str)
+parser.add_argument('-triplet_loss', default='exp7', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-lossless_beta', default=2.0, type=float)
 
-parser.add_argument('-exp_coef', default=4.0, type=float)
+parser.add_argument('-exp_coef', default=2.0, type=float)
+parser.add_argument('-overlap_coef', default=1.2, type=float)
+
+parser.add_argument('-abs_coef', default=1.5, type=float)
+parser.add_argument('-tan_coef', default=1.0, type=float)
+parser.add_argument('-sin_coef', default=1.0, type=float)
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
 parser.add_argument('-embedding_norm', default='l2', type=str)
 
-parser.add_argument('-embedding_layers', default=2, type=int)
+parser.add_argument('-embedding_layers', default=1, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
 
 parser.add_argument('-suffix_affine_layers', default=2, type=int)
@@ -109,6 +114,9 @@ parser.add_argument('-suffix_affine_layers_hidden', default=1024, type=int)
 parser.add_argument('-conv_resnet_layers', default=3, type=int)
 parser.add_argument('-conv_resnet_sub_layers', default=3, type=int)
 
+parser.add_argument('-is_pre_grad_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-pre_type', default='resnet34', type=str)
+
 parser.add_argument('-is_conv_bias', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-conv_first_channel_count', default=32, type=int) #kvass
 parser.add_argument('-conv_first_kernel', default=9, type=int)
@@ -116,11 +124,13 @@ parser.add_argument('-conv_kernel', default=3, type=int)
 parser.add_argument('-conv_stride', default=2, type=int)
 parser.add_argument('-conv_expansion_rate', default=2, type=float) #kvass
 parser.add_argument('-is_conv_max_pool', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_linear_at_end', default=True, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
 parser.add_argument('-early_stopping_patience', default=3, type=int)
-parser.add_argument('-early_stopping_param', default='train_acc_range', type=str)
+parser.add_argument('-early_stopping_param', default='train_acc_closest', type=str)
 parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 
@@ -305,7 +315,80 @@ def forward(batch):
 
     sampled = triplet_sampler.sample_batch(output, y, margin_distance, max_distance)
 
-    if args.triplet_loss == 'exp2':
+    if args.triplet_loss == 'exp7':
+
+        K = len(data_loader_train.dataset.classes)
+        pi_k = K * 2 - 1
+        C_norm = args.overlap_coef/K
+        C_limit = 1.5*C_norm
+
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        indexes_neg_valid = []
+        for idx in range(neg.size(0)):
+            if neg[idx] < C_limit:
+                indexes_neg_valid.append(idx)
+
+        loss_pos = torch.mean(torch.tan(args.tan_coef * torch.clamp(pos - C_norm, 0.0)))
+
+        loss_neg = 0
+        if len(indexes_neg_valid) > 0:
+            print(f'len:{len(indexes_neg_valid)}')
+            indexes_neg_valid = torch.LongTensor(indexes_neg_valid).to(args.device)
+            neg = torch.index_select(neg, dim=0, index=indexes_neg_valid)
+            loss_neg = torch.mean(torch.sin(pi_k*np.pi*neg - np.pi*1.5) * indexes_neg_valid * args.sin_coef + args.sin_coef)
+        loss = loss_pos + loss_neg
+
+    elif args.triplet_loss == 'exp5':
+        C = max_distance / len(data_loader_train.dataset.classes)
+        O = C * args.overlap_coef
+        pos = sampled['positives_dist']
+        neg = sampled['negatives_dist']
+
+        delta_neg = (0.5*C + O)
+        indexes_abs_part = []
+        indexes_exp_part = []
+        for idx in range(neg.size(0)):
+            if delta_neg - neg[idx] < 0:
+                indexes_exp_part.append(idx)
+            else:
+                indexes_abs_part.append(idx)
+
+        coef_neg_abs = 1.0
+        coef_neg_exp = 1.0
+        if len(indexes_exp_part) > 0:
+            coef_neg_abs = len(indexes_abs_part) / len(indexes_exp_part)
+        else:
+            coef_neg_exp = 0.0
+
+        if len(indexes_abs_part) > 0:
+            coef_neg_exp = len(indexes_exp_part) / len(indexes_abs_part)
+        else:
+            coef_neg_abs = 0.0
+
+        indexes_abs_part = torch.LongTensor(indexes_abs_part).to(args.device)
+        indexes_exp_part = torch.LongTensor(indexes_exp_part).to(args.device)
+
+        loss_pos = torch.exp(2.0 * torch.mean(torch.clamp(pos - O, 0.0))) - 1.0
+        if coef_neg_abs > 0:
+            loss_neg_abs = 30.0 * torch.mean(torch.clamp(delta_neg - torch.index_select(neg, dim=0, index=indexes_abs_part) - O*0.5, 0.0))
+        else:
+            loss_neg_abs = 0
+        if coef_neg_exp > 0:
+            loss_neg_exp = torch.exp(2.0 * torch.mean(torch.clamp((delta_neg - torch.index_select(neg, dim=0, index=indexes_exp_part)) * -1.0 - O*0.5, 0.0))) - 1.0
+        else:
+            loss_neg_exp = 0
+        loss = loss_pos + coef_neg_abs * loss_neg_abs + coef_neg_exp * loss_neg_exp
+
+    if args.triplet_loss == 'exp4':
+        pos_norm = sampled['positives_dist']/max_distance
+        neg_norm = sampled['negatives_dist']/max_distance
+        margin = 1.0 / len(data_loader_train.dataset.classes)
+        radius_cluster = margin * args.overlap_coef / 2.0
+        loss = torch.exp(args.exp_coef * torch.mean(torch.clamp(pos_norm-radius_cluster*2.0, 0.0))) + \
+            torch.exp(args.exp_coef * torch.mean(torch.clamp(torch.abs(neg_norm - margin) - radius_cluster, 0.0))) - 2.0
+    elif args.triplet_loss == 'exp2':
         loss = (torch.exp(args.exp_coef *
                           torch.mean(
                               torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0))) - 1.0) + \
@@ -313,7 +396,7 @@ def forward(batch):
                                                torch.mean(
                                                    torch.clamp(((max_distance-sampled['negatives_dist'])/max_distance)-margin_distance, 0))) - 1.0))
 
-    if args.triplet_loss == 'exp2_pairs':
+    elif args.triplet_loss == 'exp2_pairs':
         loss = torch.mean((torch.exp(args.exp_coef *
                                      torch.clamp((sampled['positives_dist']/max_distance)-margin_distance, 0)) - 1.0) +
                           (args.coef_loss_neg * (torch.exp(args.exp_coef *
@@ -560,11 +643,11 @@ for epoch in range(1, args.epochs_count + 1):
                 meters[f'{meter_prefix}_dist_negatives_hard'].add(avg_negatives_dist_hard)
 
             output = to_numpy(result['output'].to('cpu')).tolist()
-            output_embeddings += output
-            output_y_images += to_numpy(result['x']).tolist()
-
             y = to_numpy(result['y']).tolist()
             output_y += y
+
+            output_embeddings += output
+            output_y_images += to_numpy(result['x']).tolist()
             output_y_labels += [data_loader_test.dataset.classes[it] for it in y]
 
             idx_quick_test += 1
@@ -598,6 +681,12 @@ for epoch in range(1, args.epochs_count + 1):
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc2'].add(tmp1[0], tmp2[0])
+
+        max_embeddings = 2000
+        if len(output_embeddings) > max_embeddings:
+            output_embeddings = output_embeddings[:max_embeddings]
+            output_y_labels = output_y_labels[:max_embeddings]
+            output_y_images = output_y_images[:max_embeddings]
 
         # label_img: :math:`(N, C, H, W)
         tensorboard_writer.add_embedding(

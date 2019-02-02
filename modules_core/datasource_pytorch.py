@@ -99,6 +99,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
                 self.dataset = torchvision.datasets.EMNIST(
                     path_data,
                     download=True,
+                    split='balanced',
                     train=not is_test_data,
                     transform=torchvision.transforms.ToTensor()
                 )
@@ -141,7 +142,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             random.shuffle(samples)
         self.groups = groups
 
-        logging.info(f'{"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
+        logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
 
         if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:
             logging.error(f'batch does not accommodate triplet_positives {self.args.batch_size} {self.args.triplet_positives}')

@@ -22,22 +22,12 @@ import sklearn.model_selection
 import logging
 import json
 
-from modules.block_resnet_2d_ext import ResBlock2D, ConvBlock2D
+from modules.block_resnet_2d_leaky import ResBlock2D, ConvBlock2D
 from modules.block_reshape import Reshape
 from modules.dict_to_obj import DictToObj
 import modules.torch_utils as torch_utils
 
-# args.is_chroma_added
-
-# args.conv_resnet_layers (at least 1)
-# args.conv_resnet_sub_layers
-# args.conv_expansion_rate
-
-# args.is_split_affine_layer
-# args.split_affine_hidden
-
-# args.suffix_affine_layers
-# args.suffix_affine_layers_hidden
+# Variant without affline, fully convolutional net
 
 class Model(torch.nn.Module):
     def __init__(self, args):
@@ -48,25 +38,23 @@ class Model(torch.nn.Module):
         if not hasattr(self.args, 'embedding_function'):
             self.args.embedding_function = 'tanh'
 
-        layers_encoder, output_size, flatten_size = self.__create_layers_encoder(name='enc', input_size=args.input_size)
-        self.flatten_conv_size = flatten_size
+        layers_encoder, output_size = self.__create_layers_encoder(name='enc', input_size=args.input_size)
 
-        logging.info(f'conv outputs: {output_size}x{output_size} {self.channels_conv_size} {flatten_size}')
+        logging.info(f'conv outputs: {output_size}x{output_size} {self.channels_conv_size} ')
 
         self.layers_encoder = layers_encoder
 
-        output_size = self.flatten_conv_size
-        self.layers_suffix_affine = torch.nn.Sequential()
-        for idx_layer in range(self.args.suffix_affine_layers):
-            self.layers_suffix_affine.add_module(
-                f'layers_suffix_affine_{idx_layer}',
-                torch.nn.Linear(in_features=output_size, out_features=args.suffix_affine_layers_hidden, bias=False))
-            self.layers_suffix_affine.add_module(f'layers_suffix_affine_relu_{idx_layer}',torch.nn.ReLU())
-            output_size = args.suffix_affine_layers_hidden
-
+        # refined part pooling
+        # https://arxiv.org/pdf/1711.09349.pdf
         self.layers_embedding = torch.nn.Sequential(
-            torch.nn.Linear(in_features=output_size, out_features=self.args.embedding_size, bias=False)
+            torch.nn.AdaptiveAvgPool2d(output_size=1),
+            torch.nn.Conv2d(kernel_size=1, stride=1, in_channels=self.channels_conv_size, out_channels=self.args.embedding_size),
+            Reshape(shape=self.args.embedding_size),
+            torch.nn.BatchNorm1d(num_features=self.args.embedding_size)
         )
+
+        if self.args.is_linear_at_end:
+            self.layers_embedding.add_module('emb_linear', torch.nn.Linear(self.args.embedding_size, self.args.embedding_size))
 
         if self.args.embedding_function == 'sigmoid':
             self.layers_embedding.add_module('emb_sigmoid', torch.nn.Sigmoid())
@@ -78,6 +66,7 @@ class Model(torch.nn.Module):
             self.layers_embedding.add_module('emb_hard_sink', torch.nn.Hardshrink())
         elif self.args.embedding_function == 'tanh_shrink':
             self.layers_embedding.add_module('emb_tanh_shrink', torch.nn.Tanhshrink())
+
 
         torch_utils.init_parameters(self)
 
@@ -109,7 +98,8 @@ class Model(torch.nn.Module):
                                            out_channels=channels_conv_size_next,
                                            is_conv_bias=False,
                                            kernel_size=kernel_size,
-                                           stride=stride
+                                           stride=stride,
+                                           leaky_relu_slope=self.args.leaky_relu_slope
                                        ))
             self.channels_conv_size = channels_conv_size_next
 
@@ -123,7 +113,8 @@ class Model(torch.nn.Module):
                                            out_channels=self.channels_conv_size,
                                            is_conv_bias=False,
                                            kernel_size=self.args.conv_kernel,
-                                           stride=1
+                                           stride=1,
+                                           leaky_relu_slope=self.args.leaky_relu_slope
                                        ))
 
             if self.args.is_conv_max_pool:
@@ -133,13 +124,9 @@ class Model(torch.nn.Module):
                 input_size = int((input_size+2*padding-(kernel_size-1)-1)/stride + 1)
 
         layers_conv.add_module(f'last_bn_{name}', torch.nn.BatchNorm2d(self.channels_conv_size))
-        layers_conv.add_module(f'last_relu_{name}', torch.nn.ReLU())
+        layers_conv.add_module(f'last_relu_{name}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
 
-        #print(f'calc: {input_size} x {self.channels_conv_size}')
-        flatten_conv_size = int(input_size * input_size * self.channels_conv_size)
-        layers_conv.add_module(f'reshape_affine_{name}', Reshape(shape=flatten_conv_size))
-
-        return layers_conv, input_size, flatten_conv_size
+        return layers_conv, input_size
 
     def forward(self, x):
         # debug code
@@ -152,8 +139,7 @@ class Model(torch.nn.Module):
 
         output_enc = self.layers_encoder.forward(x)
 
-        output_sufix = self.layers_suffix_affine.forward(output_enc)
-        output_emb = self.layers_embedding.forward(output_sufix)
+        output_emb = self.layers_embedding.forward(output_enc)
 
         if self.args.embedding_norm == 'l2':
             norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()

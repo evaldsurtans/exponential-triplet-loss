@@ -21,10 +21,12 @@ def init_parameters(model):
                     torch.nn.init.kaiming_uniform_(param, mode='fan_out', nonlinearity='relu')
                 elif '.bn' in name or '_bn' in name:
                     if name.endswith('.weight'):
-                        torch.nn.init.constant(param, 1)
+                        torch.nn.init.normal_(param, 1.0, 0.02)
+                    else:
+                        torch.nn.init.constant_(param, 0.0)
                 elif 'bias' in name:
                     torch.nn.init.constant_(param, 0)
-                else:
+                else: # linear
                     torch.nn.init.xavier_uniform_(param)
             else:
                 if 'bias' in name:

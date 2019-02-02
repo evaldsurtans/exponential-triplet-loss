@@ -41,42 +41,50 @@ cd ~/Documents/fassion_minst/
 # -params_grid learning_rate \
 # cifar_10
 #-datasource_type cifar_10 \
+# -pre_type densenet121 resnet18 resnet34 \
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cpu \
--report test_19_rock_cifar \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device gpu \
+-report feb_2_exp7_fassion \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate embedding_norm filter_samples \
--learning_rate 1e-3 1e-4 \
--datasource_type cifar_10 \
--embedding_size 32 \
--embedding_function tanh \
--suffix_affine_layers 2 \
--suffix_affine_layers_hidden 512 \
+-params_grid learning_rate overlap_coef embedding_function embedding_norm triplet_sampler_var \
+-learning_rate 3e-4 1e-3 \
+-is_linear_at_end False \
+-leaky_relu_slope 0.01 \
+-datasource_type fassion_minst \
+-embedding_size 8 \
+-embedding_function tanh none \
+-suffix_affine_layers 1 \
+-suffix_affine_layers_hidden 1024 \
 -conv_expansion_rate 2 \
--conv_first_channel_count 8 \
--conv_first_kernel 7 \
+-conv_first_channel_count 32 \
+-conv_first_kernel 3 \
 -conv_kernel 3 \
--conv_resnet_layers 2 \
+-conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -exp_coef 2.0 \
--triplet_sampler_var hard \
--triplet_loss exp2 \
+-triplet_sampler_var hard all \
+-triplet_loss exp7 \
+-overlap_coef 1.0 1.4 \
+-abs_coef 1.0 \
+-tan_coef 1.0 \
+-sin_coef 1.0 \
 -coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
 -triplet_loss_margin 0.2 \
 -embedding_norm l2 none \
 -triplet_similarity cos \
--filter_samples none abs_margin_asym \
+-filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_sampler triplet_sampler_4 \
--model model_pink_rock \
+-model model_7_bike \
+-is_pre_grad_locked False \
 -datasource datasource_pytorch \
 -early_stopping_patience 5 \
--epochs_count 30 -is_hpc True \
+-epochs_count 50 -is_hpc True \
 -is_quick_test False \
 -single_task False
 

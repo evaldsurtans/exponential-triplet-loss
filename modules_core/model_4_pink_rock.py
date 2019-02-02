@@ -27,17 +27,7 @@ from modules.block_reshape import Reshape
 from modules.dict_to_obj import DictToObj
 import modules.torch_utils as torch_utils
 
-# args.is_chroma_added
-
-# args.conv_resnet_layers (at least 1)
-# args.conv_resnet_sub_layers
-# args.conv_expansion_rate
-
-# args.is_split_affine_layer
-# args.split_affine_hidden
-
-# args.suffix_affine_layers
-# args.suffix_affine_layers_hidden
+# Added optional normalization
 
 class Model(torch.nn.Module):
     def __init__(self, args):
@@ -155,9 +145,11 @@ class Model(torch.nn.Module):
         output_sufix = self.layers_suffix_affine.forward(output_enc)
         output_emb = self.layers_embedding.forward(output_sufix)
 
-        # Important to normalize for consine similarity
-        norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()
-        output_norm = output_emb / norm
-        # check if normalized by torch.dot(a,a)
+        if self.args.embedding_norm == 'l2':
+            norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()
+            output_norm = output_emb / norm
+        else:
+            output_norm = output_emb
+
         return output_norm
 

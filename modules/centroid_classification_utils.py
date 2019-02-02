@@ -51,9 +51,7 @@ class CentroidClassificationUtils(object):
         for key in class_centroids_noncomputed.keys():
             np_all_centroids = np.array(class_centroids_noncomputed[key])
             class_centroids[key] = np.average(np_all_centroids, axis=0)
-            max_dist = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.max)
-            median_dist = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.median)
-            class_max_dist[key] = median_dist + (max_dist - median_dist) * 0.5
+            class_max_dist[key] = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.max)
 
         predicted = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )

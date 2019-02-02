@@ -14,4 +14,4 @@ export LC_ALL=en_US.UTF-8
 # ssh -L 8080:wn58:8080 wn58
 # ~/Documents/fassion_minst/tensorboard.sh
 
-tensorboard --port 8080 --logdir ./tasks/test_19_rock/runs
+tensorboard --port 8080 --logdir ./tasks/jan_30_exp5_fassion/runs/jan_30_exp5_fassion_2028_2380
