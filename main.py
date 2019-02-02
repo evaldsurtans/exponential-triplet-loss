@@ -2,6 +2,7 @@ import matplotlib
 from torch.autograd import Variable
 
 from modules.file_utils import FileUtils
+from modules.math_utils import normalize_vec
 from modules.torch_utils import to_numpy
 
 matplotlib.use('Agg')
@@ -100,6 +101,7 @@ parser.add_argument('-overlap_coef', default=1.2, type=float)
 parser.add_argument('-abs_coef', default=1.5, type=float)
 parser.add_argument('-tan_coef', default=1.0, type=float)
 parser.add_argument('-sin_coef', default=1.0, type=float)
+parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
@@ -292,7 +294,7 @@ def calc_err(meter):
     return fpr, tpr, eer
 
 
-def forward(batch):
+def forward(batch, output_by_y):
     y = batch[0].to(args.device)
     x = batch[1].to(args.device)
 
@@ -337,8 +339,42 @@ def forward(batch):
             print(f'len:{len(indexes_neg_valid)}')
             indexes_neg_valid = torch.LongTensor(indexes_neg_valid).to(args.device)
             neg = torch.index_select(neg, dim=0, index=indexes_neg_valid)
-            loss_neg = torch.mean(torch.sin(pi_k*np.pi*neg - np.pi*1.5) * indexes_neg_valid * args.sin_coef + args.sin_coef)
+            loss_neg = torch.mean(torch.sin(pi_k*np.pi*neg - np.pi*1.5) * args.sin_coef + args.sin_coef)
+
         loss = loss_pos + loss_neg
+
+        if args.is_center_loss:
+            centers = []
+            outputs_by_centers = []
+            cached_centers_by_y = {}
+            list_y = to_numpy(y).tolist()
+            for idx, each_y in enumerate(list_y):
+                if each_y in output_by_y.keys():
+                    if each_y not in cached_centers_by_y.keys():
+                        cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
+                        if args.embedding_norm == 'l2':
+                            cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
+                        cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
+                    centers.append(cached_centers_by_y[each_y])
+                    outputs_by_centers.append(output[idx])
+
+            if len(centers) > 0:
+                print('$$$$$$$$$$$')
+                centers = torch.stack(centers).to(args.device)
+                outputs_by_centers = torch.stack(outputs_by_centers).to(args.device)
+                if args.triplet_similarity == 'cos':
+                    centers_dist = 1. - F.cosine_similarity(centers, outputs_by_centers, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+                else:
+                    centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
+
+                loss_center = torch.mean(torch.tan(args.tan_coef * torch.clamp(centers_dist - C_norm, 0.0)))
+                loss += loss_center
+
+        # KL example https://wiseodd.github.io/techblog/2017/01/24/vae-pytorch/
+        #mean_output = torch.mean(centers)
+        #std_output = torch.std()
+
+
 
     elif args.triplet_loss == 'exp5':
         C = max_distance / len(data_loader_train.dataset.classes)
@@ -582,10 +618,7 @@ for epoch in range(1, args.epochs_count + 1):
         hist_positives_dist_hard = []
         hist_negatives_dist_hard = []
 
-        output_embeddings = []
-        output_y = []
-        output_y_labels = []
-        output_y_images = []
+        output_by_y = {}
 
         meter_prefix = 'train'
         if data_loader == data_loader_train:
@@ -601,7 +634,7 @@ for epoch in range(1, args.epochs_count + 1):
             optimizer_func.zero_grad()
             torch.set_grad_enabled(True)
 
-            result = forward(batch)
+            result = forward(batch, output_by_y)
 
             if data_loader == data_loader_train:
                 if result['loss'] is not None:
@@ -644,14 +677,21 @@ for epoch in range(1, args.epochs_count + 1):
 
             output = to_numpy(result['output'].to('cpu')).tolist()
             y = to_numpy(result['y']).tolist()
-            output_y += y
+            images = to_numpy(result['x']).tolist()
 
-            output_embeddings += output
-            output_y_images += to_numpy(result['x']).tolist()
-            output_y_labels += [data_loader_test.dataset.classes[it] for it in y]
+            for idx, y_each in enumerate(y):
+                if y_each not in output_by_y.keys():
+                    y_label = data_loader_test.dataset.classes[y_each]
+                    output_by_y[y_each] = {
+                        'embeddings': [],
+                        'images': [],
+                        'label': y_label
+                    }
+                output_by_y[y_each]['embeddings'].append(output[idx])
+                output_by_y[y_each]['images'].append(images[idx])
 
             idx_quick_test += 1
-            if args.is_quick_test and idx_quick_test >= 2:
+            if args.is_quick_test and idx_quick_test >= 3:
                 break
 
         histogram_bins = 'auto'
@@ -665,6 +705,18 @@ for epoch in range(1, args.epochs_count + 1):
 
         tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_{meter_prefix}_all', epoch)
         tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_hard), np.array(hist_negatives_dist_hard), f'hist_{meter_prefix}_hard', epoch)
+
+        output_embeddings = []
+        output_y_labels = []
+        output_y = []
+        output_y_images = []
+        for key in output_by_y.keys():
+            output_embeddings += output_by_y[key]['embeddings']
+            output_y_images += output_by_y[key]['images']
+            label = output_by_y[key]['label']
+            for _ in range(len(output_by_y[key]['embeddings'])):
+                output_y_labels.append(label)
+                output_y.append(key)
 
         predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range')
 

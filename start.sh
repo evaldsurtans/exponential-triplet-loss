@@ -49,8 +49,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate overlap_coef embedding_function embedding_norm triplet_sampler_var \
--learning_rate 3e-4 1e-3 \
+-params_grid learning_rate overlap_coef embedding_function embedding_norm triplet_sampler_var is_center_loss \
+-learning_rate 1e-4 1e-3 \
 -is_linear_at_end False \
 -leaky_relu_slope 0.01 \
 -datasource_type fassion_minst \
@@ -69,6 +69,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -triplet_sampler_var hard all \
 -triplet_loss exp7 \
 -overlap_coef 1.0 1.4 \
+-is_center_loss False True \
 -abs_coef 1.0 \
 -tan_coef 1.0 \
 -sin_coef 1.0 \
