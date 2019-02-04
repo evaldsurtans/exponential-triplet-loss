@@ -15,6 +15,7 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import torchvision
+import torchvision.transforms.functional
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import tensorboardX
 import argparse
@@ -101,7 +102,11 @@ class Dataset(torch.utils.data.dataset.Dataset):
                     download=True,
                     split='balanced',
                     train=not is_test_data,
-                    transform=torchvision.transforms.ToTensor()
+                    transform=torchvision.transforms.Compose([
+                        lambda img: torchvision.transforms.functional.rotate(img, -90),
+                        lambda img: torchvision.transforms.functional.hflip(img),
+                        torchvision.transforms.ToTensor()
+                    ])
                 )
 
             FileUtils.unlock_file(fp_download_lock)

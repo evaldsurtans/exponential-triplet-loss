@@ -45,15 +45,15 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device gpu \
--report feb_3_exp7_fassion \
+-report feb_4_comp_eminst \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate overlap_coef triplet_sampler_var is_center_loss is_kl_loss \
--learning_rate 1e-4 1e-5 \
+-params_grid learning_rate overlap_coef \
+-learning_rate 1e-4 1e-5 1e-3 \
 -is_linear_at_end False \
 -leaky_relu_slope 0.01 \
--datasource_type fassion_minst \
+-datasource_type eminst \
 -embedding_size 16 \
 -embedding_function tanh \
 -suffix_affine_layers 1 \
@@ -66,11 +66,11 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -exp_coef 2.0 \
--triplet_sampler_var hard all \
+-triplet_sampler_var hard \
 -triplet_loss exp7 \
--overlap_coef 1.0 1.4 \
--is_center_loss True False \
--is_kl_loss True False \
+-overlap_coef 1.0 1.2 1.4 \
+-is_center_loss False \
+-is_kl_loss False \
 -abs_coef 1.0 \
 -tan_coef 1.0 \
 -sin_coef 1.0 \
