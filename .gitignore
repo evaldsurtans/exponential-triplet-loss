@@ -4,3 +4,4 @@ modules_core/__pycache__
 tasks/report
 reports
 tasks
+temp_*

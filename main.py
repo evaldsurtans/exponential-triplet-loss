@@ -95,7 +95,7 @@ parser.add_argument('-triplet_loss', default='exp7', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-lossless_beta', default=2.0, type=float)
+parser.add_argument('-lossless_beta', default=1.2, type=float)
 
 parser.add_argument('-exp_coef', default=2.0, type=float)
 parser.add_argument('-overlap_coef', default=1.2, type=float)
@@ -469,16 +469,12 @@ def forward(batch, output_by_y):
         delta = sampled['positives_dist'] - sampled['negatives_dist_all_filtred'] + margin_distance
         loss = torch.mean(torch.clamp(delta, min=0))
     elif args.triplet_loss == 'lossless':
-        loss = -torch.mean(torch.log10(1e-7 + 1.0 - sampled['positives_dist'] / args.lossless_beta)) - torch.mean(torch.log10(1e-7 + 1.0 - (args.embedding_size - sampled['negatives_dist']) / args.lossless_beta))
-        # Where N is the number of dimensions (Number of output of your network; Number of features for your embedding)
-        # TODO
-    elif args.triplet_loss == 'lifted':
-        # https://arxiv.org/pdf/1511.06452.pdf
-        delta = torch.mean(sampled['positives_dist']) + torch.log(torch.mean(torch.exp(margin_distance - sampled['positives_dist'])) + torch.mean(torch.exp(margin_distance - sampled['negatives_dist'])))
-        loss = torch.clamp(delta, min=0)
-    elif args.triplet_loss == 'lifted2':
-        delta = torch.mean(sampled['positives_dist']) + torch.log(torch.sum(torch.exp(margin_distance - sampled['positives_dist'])) + torch.sum(torch.exp(margin_distance - sampled['negatives_dist'])))
-        loss = torch.clamp(delta, min=0)
+        pos = torch.mean(sampled['positives_dist'] / max_distance)
+        neg = torch.mean(sampled['negatives_dist'] / max_distance)
+        b = args.lossless_beta
+        e = 1e-20
+        loss = -torch.log10(-pos/b + 1.0 +e) - torch.log10(-(1.0-neg)/b + 1 + e)
+
 
     if args.is_center_loss or args.is_kl_loss:
         centers = []
