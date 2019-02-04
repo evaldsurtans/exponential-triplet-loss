@@ -127,8 +127,8 @@ K = 100
 pi_k = K * 2 - 1
 C_norm = 1.0/K
 C_limit = 1.5*C_norm
-sin_coef = 1.0/K # jo mazaks x/.. jo mazakas bedrites
-tan_coef = 1.0/K
+sin_coef = 20.0/K # jo mazaks x/.. jo mazakas bedrites
+tan_coef = 20.0/K
 
 #- np.pi
 _sin = lambda it: sin_coef * np.sin(pi_k*np.pi*it-np.pi*1.5) + sin_coef

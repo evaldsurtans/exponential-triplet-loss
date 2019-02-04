@@ -68,19 +68,19 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -exp_coef 2.0 \
 -triplet_sampler_var hard \
 -triplet_loss exp7 \
--overlap_coef 1.0 1.2 1.4 \
+-overlap_coef 1.0 \
 -is_center_loss False \
 -is_kl_loss False \
 -abs_coef 1.0 \
--tan_coef 1.0 \
--sin_coef 1.0 \
+-tan_coef 20.0 \
+-sin_coef 20.0 \
 -coef_loss_neg 1.0 \
 -lossless_beta 2.0 \
--triplet_loss_margin 0.2 \
 -embedding_norm l2 \
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
+-triplet_loss_margin \
 -triplet_sampler triplet_sampler_4 \
 -model model_7_bike \
 -is_pre_grad_locked False \

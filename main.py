@@ -101,12 +101,13 @@ parser.add_argument('-exp_coef', default=2.0, type=float)
 parser.add_argument('-overlap_coef', default=1.2, type=float)
 
 parser.add_argument('-abs_coef', default=1.5, type=float)
-parser.add_argument('-tan_coef', default=1.0, type=float)
-parser.add_argument('-sin_coef', default=1.0, type=float)
+parser.add_argument('-tan_coef', default=20.0, type=float)
+parser.add_argument('-sin_coef', default=20.0, type=float)
+parser.add_argument('-kl_coef', default=1e-3, type=float)
 
 parser.add_argument('-pos_samples_min_count', default=100, type=int)
-parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-is_kl_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
@@ -515,6 +516,7 @@ def forward(batch, output_by_y):
                         embs_by_y[each_y].append(output[idx])
 
                 sigmas = []
+                mus = []
                 for each_y in embs_by_y.keys():
                     perm_idxes = np.random.permutation(len(output_by_y[each_y]['embeddings']))
                     perm_idxes = perm_idxes[:args.pos_samples_min_count]
@@ -533,13 +535,20 @@ def forward(batch, output_by_y):
                     else:
                         t_centers_dist = F.pairwise_distance(t_centers, t_embs, eps=1e-20) # 0 .. 2
 
-                    #mu_output = torch.mean(t_centers_dist)
+                    mu_output = torch.mean(t_centers_dist)
                     sigma_output = torch.std(t_centers_dist)
                     sigmas.append(sigma_output)
+                    mus.append(mu_output)
 
-                sigmas = torch.stack(sigmas).to(args.device)
-                loss_kl_div = torch.mean(torch.abs(torch.log(sigmas ** 2 / (3*C_norm)** 2)))
-                loss += loss_kl_div
+                sigma = torch.mean(torch.stack(sigmas).to(args.device))
+                mu = torch.mean(torch.stack(mus).to(args.device))
+
+                sigma_target = C_norm * 0.5 / 3.0 # C_norm => radius => sigma approx.
+                mu_target = C_norm * 0.5 # only positive range of distances
+
+                if sigma > 0:
+                    kl_div = args.kl_coef * torch.log(sigma_target/sigma) + (sigma**2 + (mu - mu_target)**2)/(2*sigma_target**2) - 0.5
+                    loss += kl_div
 
 
 
