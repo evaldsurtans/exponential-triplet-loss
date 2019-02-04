@@ -142,6 +142,10 @@ class Dataset(torch.utils.data.dataset.Dataset):
             random.shuffle(samples)
         self.groups = groups
 
+        # for debugging purposes
+        if self.args.datasource_size_samples > 0:
+            self.size_samples = self.args.datasource_size_samples
+
         logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
 
         if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:

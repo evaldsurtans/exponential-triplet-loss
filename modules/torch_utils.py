@@ -35,3 +35,18 @@ def init_parameters(model):
                     torch.nn.init.uniform_(param)
 
     logging.info(f'total_param_size: {total_param_size}')
+
+
+def normalize_output(output_emb, embedding_norm):
+    if embedding_norm == 'l2':
+        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
+        output_norm = output_emb / norm
+    elif embedding_norm == 'unit_range':
+        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
+        div_norm = 1.0 / norm
+        ones_norm = torch.ones_like(div_norm)
+        scaler = torch.where(norm > 1.0, div_norm, ones_norm)
+        output_norm = output_emb * scaler
+    else: # none
+        output_norm = output_emb
+    return output_norm

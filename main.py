@@ -74,12 +74,14 @@ parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, al
 # https://omoindrot.github.io/triplet-loss
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
 parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
+parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 non2
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
 parser.add_argument('-datasource_type', default='eminst', type=str) # fassion_minst minst
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
+parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
 
 parser.add_argument('-epochs_count', default=10, type=int)
 
@@ -101,11 +103,13 @@ parser.add_argument('-overlap_coef', default=1.2, type=float)
 parser.add_argument('-abs_coef', default=1.5, type=float)
 parser.add_argument('-tan_coef', default=1.0, type=float)
 parser.add_argument('-sin_coef', default=1.0, type=float)
+
+parser.add_argument('-pos_samples_min_count', default=100, type=int)
 parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_kl_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
-parser.add_argument('-embedding_norm', default='l2', type=str)
 
 parser.add_argument('-embedding_layers', default=1, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
@@ -317,11 +321,11 @@ def forward(batch, output_by_y):
 
     sampled = triplet_sampler.sample_batch(output, y, margin_distance, max_distance)
 
-    if args.triplet_loss == 'exp7':
+    K = len(data_loader_train.dataset.classes)
+    C_norm = args.overlap_coef/K
 
-        K = len(data_loader_train.dataset.classes)
+    if args.triplet_loss == 'exp7':
         pi_k = K * 2 - 1
-        C_norm = args.overlap_coef/K
         C_limit = 1.5*C_norm
 
         pos = sampled['positives_dist'] / max_distance
@@ -336,45 +340,11 @@ def forward(batch, output_by_y):
 
         loss_neg = 0
         if len(indexes_neg_valid) > 0:
-            print(f'len:{len(indexes_neg_valid)}')
             indexes_neg_valid = torch.LongTensor(indexes_neg_valid).to(args.device)
             neg = torch.index_select(neg, dim=0, index=indexes_neg_valid)
             loss_neg = torch.mean(torch.sin(pi_k*np.pi*neg - np.pi*1.5) * args.sin_coef + args.sin_coef)
 
         loss = loss_pos + loss_neg
-
-        if args.is_center_loss:
-            centers = []
-            outputs_by_centers = []
-            cached_centers_by_y = {}
-            list_y = to_numpy(y).tolist()
-            for idx, each_y in enumerate(list_y):
-                if each_y in output_by_y.keys():
-                    if each_y not in cached_centers_by_y.keys():
-                        cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
-                        if args.embedding_norm == 'l2':
-                            cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
-                        cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
-                    centers.append(cached_centers_by_y[each_y])
-                    outputs_by_centers.append(output[idx])
-
-            if len(centers) > 0:
-                print('$$$$$$$$$$$')
-                centers = torch.stack(centers).to(args.device)
-                outputs_by_centers = torch.stack(outputs_by_centers).to(args.device)
-                if args.triplet_similarity == 'cos':
-                    centers_dist = 1. - F.cosine_similarity(centers, outputs_by_centers, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
-                else:
-                    centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
-
-                loss_center = torch.mean(torch.tan(args.tan_coef * torch.clamp(centers_dist - C_norm, 0.0)))
-                loss += loss_center
-
-        # KL example https://wiseodd.github.io/techblog/2017/01/24/vae-pytorch/
-        #mean_output = torch.mean(centers)
-        #std_output = torch.std()
-
-
 
     elif args.triplet_loss == 'exp5':
         C = max_distance / len(data_loader_train.dataset.classes)
@@ -508,6 +478,70 @@ def forward(batch, output_by_y):
     elif args.triplet_loss == 'lifted2':
         delta = torch.mean(sampled['positives_dist']) + torch.log(torch.sum(torch.exp(margin_distance - sampled['positives_dist'])) + torch.sum(torch.exp(margin_distance - sampled['negatives_dist'])))
         loss = torch.clamp(delta, min=0)
+
+    if args.is_center_loss or args.is_kl_loss:
+        centers = []
+        outputs_by_centers = []
+        cached_centers_by_y = {}
+        list_y = to_numpy(y).tolist()
+        for idx, each_y in enumerate(list_y):
+            if each_y in output_by_y.keys():
+                if each_y not in cached_centers_by_y.keys():
+                    cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
+                    if args.embedding_norm == 'l2': #TODO unit_range
+                        cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
+                    cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
+                centers.append(cached_centers_by_y[each_y])
+                outputs_by_centers.append(output[idx])
+
+        if len(centers) > args.pos_samples_min_count:
+            centers = torch.stack(centers).to(args.device)
+            outputs_by_centers = torch.stack(outputs_by_centers).to(args.device)
+            if args.triplet_similarity == 'cos':
+                centers_dist = 1. - F.cosine_similarity(centers, outputs_by_centers, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+            else:
+                centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
+
+            if args.is_center_loss:
+                loss_center = torch.mean(torch.tan(args.tan_coef * torch.clamp(centers_dist - C_norm, 0.0)))
+                loss += loss_center
+
+            if args.is_kl_loss:
+                embs_by_y = {}
+                for idx, each_y in enumerate(list_y):
+                    if each_y in output_by_y.keys():
+                        if each_y not in embs_by_y.keys():
+                            embs_by_y[each_y] = []
+                        embs_by_y[each_y].append(output[idx])
+
+                sigmas = []
+                for each_y in embs_by_y.keys():
+                    perm_idxes = np.random.permutation(len(output_by_y[each_y]['embeddings']))
+                    perm_idxes = perm_idxes[:args.pos_samples_min_count]
+                    centers = []
+                    embs = embs_by_y[each_y]
+                    for _ in range(len(perm_idxes) + len(embs)):
+                        centers.append(cached_centers_by_y[each_y])
+                    t_centers = torch.stack(centers).to(args.device)
+
+                    for idx in perm_idxes:
+                        embs.append( torch.FloatTensor(output_by_y[each_y]['embeddings'][idx]).to(args.device) )
+                    t_embs = torch.stack(embs)
+
+                    if args.triplet_similarity == 'cos':
+                        t_centers_dist = 1. - F.cosine_similarity(t_centers, t_embs, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+                    else:
+                        t_centers_dist = F.pairwise_distance(t_centers, t_embs, eps=1e-20) # 0 .. 2
+
+                    #mu_output = torch.mean(t_centers_dist)
+                    sigma_output = torch.std(t_centers_dist)
+                    sigmas.append(sigma_output)
+
+                sigmas = torch.stack(sigmas).to(args.device)
+                loss_kl_div = torch.mean(torch.abs(torch.log(sigmas ** 2 / (3*C_norm)** 2)))
+                loss += loss_kl_div
+
+
 
     result = dict(
         output=output,
@@ -685,7 +719,7 @@ for epoch in range(1, args.epochs_count + 1):
                     output_by_y[y_each] = {
                         'embeddings': [],
                         'images': [],
-                        'label': y_label
+                        'label': y_label,
                     }
                 output_by_y[y_each]['embeddings'].append(output[idx])
                 output_by_y[y_each]['images'].append(images[idx])
@@ -734,11 +768,26 @@ for epoch in range(1, args.epochs_count + 1):
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc2'].add(tmp1[0], tmp2[0])
 
-        max_embeddings = 2000
-        if len(output_embeddings) > max_embeddings:
-            output_embeddings = output_embeddings[:max_embeddings]
-            output_y_labels = output_y_labels[:max_embeddings]
-            output_y_images = output_y_images[:max_embeddings]
+        max_embeddings_per_class = 100
+        output_embeddings = []
+        output_y_labels = []
+        output_y = []
+        output_y_images = []
+        for key in output_by_y.keys():
+            embeddings = output_by_y[key]['embeddings']
+            images = output_by_y[key]['images']
+
+            if len(embeddings) > max_embeddings_per_class:
+                embeddings = embeddings[:max_embeddings_per_class]
+                images = images[:max_embeddings_per_class]
+
+            output_embeddings += embeddings
+            output_y_images += images
+
+            label = output_by_y[key]['label']
+            for _ in range(len(embeddings)):
+                output_y_labels.append(label)
+                output_y.append(key)
 
         # label_img: :math:`(N, C, H, W)
         tensorboard_writer.add_embedding(

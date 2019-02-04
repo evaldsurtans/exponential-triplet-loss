@@ -211,12 +211,7 @@ class Model(torch.nn.Module):
             out = torch.cat([out] + u_net_residiuals, dim=1)
         output_emb = self.layers_embedding.forward(out)
 
-        # Important to normalize for consine similarity
-        output_norm = output_emb
-        if self.args.embedding_norm == 'l2':
-            norm = torch.norm(output_emb, p=2, dim=1, keepdim=True).detach()
-            output_norm = output_emb / norm
-        # check if normalized by torch.dot(a,a)
+        output_norm = torch_utils.normalize_output(output_emb, self.args.embedding_norm)
 
         return output_norm
 
