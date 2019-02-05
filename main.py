@@ -105,6 +105,11 @@ parser.add_argument('-tan_coef', default=20.0, type=float)
 parser.add_argument('-sin_coef', default=20.0, type=float)
 parser.add_argument('-kl_coef', default=1e-3, type=float)
 
+parser.add_argument('-pos_coef', default=0.1, type=float)
+parser.add_argument('-neg_coef', default=0.02, type=float)
+parser.add_argument('-exp_pos_coef', default=2.0, type=float)
+parser.add_argument('-exp_neg_coef', default=8.0, type=float)
+
 parser.add_argument('-pos_samples_min_count', default=100, type=int)
 parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -316,7 +321,9 @@ def forward(batch, output_by_y):
     max_distance = 2.0 # cosine distance
 
     if args.is_triplet_loss_margin_auto:
-        margin_distance = max_distance / len(data_loader_train.dataset.classes)
+        margin_distance = args.overlap_coef * max_distance / len(data_loader_train.dataset.classes)
+        if args.triplet_similarity == 'cos':
+            margin_distance *= 2.0
     else:
         margin_distance = args.triplet_loss_margin
 
@@ -324,9 +331,20 @@ def forward(batch, output_by_y):
 
     K = len(data_loader_train.dataset.classes)
     C_norm = args.overlap_coef/K
+    if args.triplet_similarity == 'cos':
+        C_norm *= 2.0
 
-    if args.triplet_loss == 'exp7':
+    if args.triplet_loss == 'exp8':
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        loss_pos = args.pos_coef * torch.mean(torch.exp(args.exp_pos_coef * torch.clamp(pos - C_norm, 0.0))) - args.pos_coef
+        loss_neg = args.neg_coef * torch.mean(torch.exp(args.exp_neg_coef * torch.clamp(0.5 - neg, 0.0))) - args.neg_coef
+        loss = loss_pos + loss_neg
+    elif args.triplet_loss == 'exp7':
         pi_k = K * 2 - 1
+        if args.triplet_similarity == 'cos':
+            pi_k = K - 1
         C_limit = 1.5*C_norm
 
         pos = sampled['positives_dist'] / max_distance
@@ -662,6 +680,7 @@ for epoch in range(1, args.epochs_count + 1):
         meter_prefix = 'train'
         if data_loader == data_loader_train:
             model = model.train()
+            torch.set_grad_enabled(True)
         else:
             meter_prefix = 'test'
             model = model.eval()
@@ -671,7 +690,6 @@ for epoch in range(1, args.epochs_count + 1):
 
         for batch in data_loader:
             optimizer_func.zero_grad()
-            torch.set_grad_enabled(True)
 
             result = forward(batch, output_by_y)
 
