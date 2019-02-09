@@ -83,7 +83,7 @@ parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[]
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
 
-parser.add_argument('-epochs_count', default=10, type=int)
+parser.add_argument('-epochs_count', default=20, type=int)
 
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
@@ -91,7 +91,7 @@ parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
-parser.add_argument('-triplet_loss', default='exp7', type=str)
+parser.add_argument('-triplet_loss', default='exp8b', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -105,10 +105,9 @@ parser.add_argument('-tan_coef', default=20.0, type=float)
 parser.add_argument('-sin_coef', default=20.0, type=float)
 parser.add_argument('-kl_coef', default=1e-3, type=float)
 
-parser.add_argument('-pos_coef', default=0.1, type=float)
-parser.add_argument('-neg_coef', default=0.02, type=float)
-parser.add_argument('-exp_pos_coef', default=2.0, type=float)
-parser.add_argument('-exp_neg_coef', default=8.0, type=float)
+parser.add_argument('-slope_coef', default=4.0, type=float)
+parser.add_argument('-neg_coef', default=0.8, type=float)
+parser.add_argument('-pos_coef', default=1.0, type=float)
 
 parser.add_argument('-pos_samples_min_count', default=100, type=int)
 parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -334,12 +333,12 @@ def forward(batch, output_by_y):
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
 
-    if args.triplet_loss == 'exp8':
+    if args.triplet_loss == 'exp8b':
         pos = sampled['positives_dist'] / max_distance
         neg = sampled['negatives_dist'] / max_distance
 
-        loss_pos = args.pos_coef * torch.mean(torch.exp(args.exp_pos_coef * torch.clamp(pos - C_norm, 0.0))) - args.pos_coef
-        loss_neg = args.neg_coef * torch.mean(torch.exp(args.exp_neg_coef * torch.clamp(0.5 - neg, 0.0))) - args.neg_coef
+        loss_pos = torch.mean(args.slope_coef * torch.exp(pos)) - 1.0
+        loss_neg = args.neg_coef * torch.mean(torch.exp(args.slope_coef * 2.0 * torch.clamp(0.5 - neg, 0.0))) - args.neg_coef
         loss = loss_pos + loss_neg
     elif args.triplet_loss == 'exp7':
         pi_k = K * 2 - 1

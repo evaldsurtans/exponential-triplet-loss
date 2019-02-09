@@ -366,6 +366,8 @@ for idx_comb, params_comb in enumerate(grid):
 
                         fp.write(f'#PBS -l nodes=1:ppn={cpu_count}:gpus={args.hpc_gpu_count}{shared_setting}{feature}\n')
                     else:
+                        if args.hpc_queue == 'inf':
+                            cpu_count = 12
                         fp.write(f'#PBS -p 900\n')
                         fp.write(f'#PBS -l nodes=1:ppn={cpu_count}\n')
                         #fp.write(f'#PBS -l feature=centos7\n')

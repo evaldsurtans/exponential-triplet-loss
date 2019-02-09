@@ -123,7 +123,7 @@ class TripletSampler(object):
                         negatives_dist_all.append(anchor_distances[idx_negative])
 
                     if 'abs_margin' in self.args.filter_samples or 'abs_margin_asym' in self.args.filter_samples:
-                        if (max_distance - anchor_distances[idx_negative])/max_distance <= margin:
+                        if (max_distance - anchor_distances[idx_negative])/max_distance > 0.5:
                             continue
 
                     if 'hard' in self.args.filter_samples or 'semi_hard' in self.args.filter_samples:
