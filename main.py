@@ -83,7 +83,7 @@ parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[]
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
 
-parser.add_argument('-epochs_count', default=20, type=int)
+parser.add_argument('-epochs_count', default=30, type=int)
 
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
@@ -333,7 +333,28 @@ def forward(batch, output_by_y):
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
 
-    if args.triplet_loss == 'exp8b':
+    if args.triplet_loss == 'exp8d':
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        loss_pos = torch.mean(args.pos_coef * torch.clamp(pos - C_norm, 0.0))
+        loss_neg = torch.mean(args.neg_coef * torch.clamp(0.5 - neg, 0.0))
+        loss = loss_pos + loss_neg
+    elif args.triplet_loss == 'exp8e':
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        loss_pos = torch.mean(args.slope_coef * torch.exp(torch.clamp(pos - C_norm, 0.0))) - 1.0
+        loss_neg = torch.mean(torch.exp(args.slope_coef * args.neg_coef * torch.clamp(0.5 - neg, 0.0))) - 1.0
+        loss = loss_pos + loss_neg
+    elif args.triplet_loss == 'exp8c':
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        loss_pos = torch.mean(args.slope_coef * torch.exp(pos)) - 1.0
+        loss_neg = torch.mean(torch.exp(args.slope_coef * args.neg_coef * torch.clamp(0.5 - neg, 0.0))) - 1.0
+        loss = loss_pos + loss_neg
+    elif args.triplet_loss == 'exp8b':
         pos = sampled['positives_dist'] / max_distance
         neg = sampled['negatives_dist'] / max_distance
 

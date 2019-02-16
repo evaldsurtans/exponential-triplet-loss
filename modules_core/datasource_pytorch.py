@@ -170,9 +170,6 @@ class Dataset(torch.utils.data.dataset.Dataset):
         self.samples = []
         for _ in range(self.size_samples):
             group = self.groups[idx_group]
-            idx_group += 1
-            if idx_group >= len(self.groups):
-                idx_group = 0
 
             for _ in range(self.args.triplet_positives):
                 img = group['samples'][group['counter']]
@@ -181,6 +178,11 @@ class Dataset(torch.utils.data.dataset.Dataset):
                 group['counter'] += 1
                 if group['counter'] >= len(group['samples']):
                     group['counter'] = 0
+
+            # add idx_group counter after pushing samples so that y = [0...K-1] not y = [1...K]
+            idx_group += 1
+            if idx_group >= len(self.groups):
+                idx_group = 0
 
         logging.info(f'{"test" if self.is_test_data else "train"} size_samples: {len(self.samples)}')
         # logging.info(f'idx_group: {idx_group}')

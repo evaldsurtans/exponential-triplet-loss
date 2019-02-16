@@ -49,8 +49,8 @@ cd ~/Documents/fassion_minst/
 # rudens
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device cuda \
--report feb_16_exp8d_linear_eminst \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cuda \
+-report feb_16_exp8c_zipper_eminst \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
@@ -75,7 +75,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -is_conv_max_pool False \
 -exp_coef 2.0 \
 -triplet_sampler_var all \
--triplet_loss exp8d \
+-triplet_loss exp8c \
 -is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
@@ -86,7 +86,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_4 \
+-triplet_sampler triplet_sampler_5_zipper \
 -model model_7_bike \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \
