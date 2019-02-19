@@ -63,7 +63,7 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_7_bike', type=str)
+parser.add_argument('-model', default='model_8_lamp', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
@@ -135,7 +135,7 @@ parser.add_argument('-conv_kernel', default=3, type=int)
 parser.add_argument('-conv_stride', default=2, type=int)
 parser.add_argument('-conv_expansion_rate', default=2, type=float) #kvass
 parser.add_argument('-is_conv_max_pool', default=False, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-is_linear_at_end', default=True, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_linear_at_end', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
@@ -157,6 +157,8 @@ tmp = [
     'epoch',
     'test_acc_range',
     'test_acc_closest',
+    'best_acc_range',
+    'best_acc_closest',
     'test_eer',
     'train_acc_range',
     'train_acc_closest',
@@ -196,6 +198,8 @@ tmp = [
     'epoch',
     'test_acc_range',
     'test_acc_closest',
+    'best_acc_range',
+    'best_acc_closest',
     'test_eer',
     'train_acc_range',
     'train_acc_closest',
@@ -604,10 +608,12 @@ state = {
     'train_loss': -1,
     'test_loss': -1,
     'test_acc_range': -1,
+    'best_acc_range': -1,
     'train_acc_range': -1,
     'test_auc': -1,
     'train_auc': -1,
     'test_acc_closest': -1,
+    'best_acc_closest': -1,
     'train_acc_closest': -1,
     'test_auc2': -1,
     'train_auc2': -1,
@@ -849,6 +855,12 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_eer2'] = eer
 
         state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]
+
+        if meter_prefix == 'test':
+            if state[f'best_acc_closest'] < state[f'{meter_prefix}_acc_closest']:
+                state[f'best_acc_closest'] = state[f'{meter_prefix}_acc_closest']
+            if state[f'best_acc_range'] < state[f'{meter_prefix}_acc_range']:
+                state[f'best_acc_range'] = state[f'{meter_prefix}_acc_range']
 
         state[f'{meter_prefix}_dist_positives'] = meters[f'{meter_prefix}_dist_positives'].value()[0]
         state[f'{meter_prefix}_dist_negatives'] = meters[f'{meter_prefix}_dist_negatives'].value()[0]
