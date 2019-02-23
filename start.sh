@@ -43,34 +43,31 @@ cd ~/Documents/fassion_minst/
 #-datasource_type cifar_10 \
 # -pre_type densenet121 resnet18 resnet34 \
 
-#-exp_neg_coef 4.0 \
-#-exp_pos_coef 7.0 6.0 5.0 4.0 \
-#-pos_coef 1e-2 1e-1 \
-# rudens
+# -embedding_layers 0 == fully convolutional
 
-python taskgen.py -repeat 3 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device cuda \
--report feb_19_exp8e_lamp_repeat_eminst \
+-report feb_23_exp8e_lamp_eminst \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate embedding_norm slope_coef overlap_coef embedding_layers \
--learning_rate 1e-3 3e-4 1e-5 \
--overlap_coef 1.3 1.0 \
--slope_coef 2.0 1.0 \
+-params_grid learning_rate conv_kernel conv_resnet_layers conv_resnet_sub_layers embedding_size \
+-learning_rate 1e-3 3e-4 \
+-overlap_coef 1.3 \
+-slope_coef 1.0 \
 -neg_coef 1.0 \
--embedding_layers 0 1 2 \
+-embedding_layers 0 \
 -embedding_layers_hidden 512 \
 -leaky_relu_slope 0.01 \
 -datasource_type eminst \
--embedding_size 16 \
--embedding_function tanh \
+-embedding_size 16 32 64 \
+-embedding_function none \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
--conv_first_kernel 7 \
--conv_kernel 5 \
--conv_resnet_layers 4 \
--conv_resnet_sub_layers 3 \
+-conv_first_kernel 7 5 \
+-conv_kernel 5 3 \
+-conv_resnet_layers 4 5 2 \
+-conv_resnet_sub_layers 3 1 0 \
 -is_conv_max_pool False \
 -exp_coef 2.0 \
 -triplet_sampler_var all \
@@ -80,12 +77,12 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm l2 none \
+-embedding_norm none \
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_4 \
+-triplet_sampler triplet_sampler_4  \
 -model model_8_lamp \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

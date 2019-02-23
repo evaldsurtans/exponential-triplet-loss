@@ -185,6 +185,8 @@ tmp = [
     'train_count_negatives_all',
     'test_negative_max',
     'train_negative_max',
+    'test_max_dist',
+    'train_max_dist',
     'test_loss',
     'train_loss',
     'avg_epoch_time']
@@ -226,6 +228,8 @@ tmp = [
     'train_count_negatives_all',
     'test_negative_max',
     'train_negative_max',
+    'test_max_dist',
+    'train_max_dist'
     'test_loss',
     'train_loss',
     'epoch_time',
@@ -617,6 +621,8 @@ state = {
     'train_acc_closest': -1,
     'test_auc2': -1,
     'train_auc2': -1,
+    'test_max_dist': -1,
+    'train_max_dist': -1,
     'test_eer': -1,
     'train_eer': -1,
     'test_eer2': -1,
@@ -801,7 +807,7 @@ for epoch in range(1, args.epochs_count + 1):
                 output_y_labels.append(label)
                 output_y.append(key)
 
-        predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range')
+        predicted, target, target_y, max_dist = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm)
 
         meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
 
@@ -809,13 +815,14 @@ for epoch in range(1, args.epochs_count + 1):
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc'].add(tmp1[0], tmp2[0])
 
-        predicted, target, target_y = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest')
+        predicted, target, target_y, max_dist = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm)
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
 
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc2'].add(tmp1[0], tmp2[0])
+        state[f'{meter_prefix}_max_dist'] = max_dist
 
         max_embeddings_per_class = 100
         output_embeddings = []

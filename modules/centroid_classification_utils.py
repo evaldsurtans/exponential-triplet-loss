@@ -37,7 +37,7 @@ class CentroidClassificationUtils(object):
 
     # @type = 'range' 'closest'
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range'):
+    def calulate_classes(embeddings, y_list, type='range', norm='l2'):
 
         class_centroids_noncomputed = {}
         for idx, embedding in enumerate(embeddings):
@@ -51,7 +51,15 @@ class CentroidClassificationUtils(object):
         for key in class_centroids_noncomputed.keys():
             np_all_centroids = np.array(class_centroids_noncomputed[key])
             class_centroids[key] = np.average(np_all_centroids, axis=0)
-            class_max_dist[key] = cosine_similarity(class_centroids[key], np_all_centroids, reduce=np.max)
+            if norm == 'l2':
+                class_centroids[key] = normalize_vec(class_centroids[key])
+
+            list_dists = []
+            for emb in np_all_centroids:
+                list_dists.append(cosine_similarity(class_centroids[key], emb))
+            list_dists = sorted(list_dists, reverse=False)
+            list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
+            class_max_dist[key] = list_dists[-1] # last largest distance
 
         predicted = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
@@ -88,7 +96,8 @@ class CentroidClassificationUtils(object):
 
         if type == 'range':
             predicted = predicted / np.sum(predicted, keepdims=True)
+        max_dist = np.average(list(class_max_dist.values()))
 
-        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y))
+        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), max_dist
 
 
