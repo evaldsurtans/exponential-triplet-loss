@@ -63,7 +63,7 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_8_lamp', type=str)
+parser.add_argument('-model', default='model_9_mince', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
@@ -116,8 +116,9 @@ parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower()
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
 
-parser.add_argument('-embedding_layers', default=1, type=int)
+parser.add_argument('-embedding_layers', default=0, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
+parser.add_argument('-embedding_layers_hidden_func', default='maxout', type=str)
 
 parser.add_argument('-suffix_affine_layers', default=2, type=int)
 parser.add_argument('-suffix_affine_layers_hidden', default=1024, type=int)

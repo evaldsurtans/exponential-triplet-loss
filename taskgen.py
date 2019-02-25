@@ -209,12 +209,14 @@ for arg in vars(args):
             if not value is None and len(value) > 0 and not value[0] is None:
                 formated_params_seq[key] = value
 
-logging.info(formated_params_seq)
-
+            if len(value) > 1:
+                logging_utils.info(f'Not in grid: {key}')
+                logging_utils.info(json.dumps(formated_params_seq[key], indent=4))
 
 grid = []
 if len(list(formated_params_grid)) > 0:
     grid = list(ParameterGrid(formated_params_grid))
+
 
 # add sequences
 for each_seq in formated_params_seq:
@@ -267,9 +269,9 @@ for params_comb in grid:
     params_comb['tf_ratio_train'] = args.tf_ratio_train
 
     tmp_serialized = json.dumps(params_comb, indent=4)
-    logging_utils.info(f'\n\n{tmp_cnt} / {len(grid)}: {tmp_id}')
-    logging_utils.info(tmp_serialized)
+    #logging_utils.info(tmp_serialized)
 
+logging_utils.info(f'\n\n{tmp_cnt} / {len(grid)}: {tmp_id}')
 logging.info(f'formated_params_grid:{json.dumps(formated_params_grid, indent=4)}')
 
 print('are tests ok? proceed?')

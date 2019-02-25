@@ -46,28 +46,29 @@ cd ~/Documents/fassion_minst/
 # -embedding_layers 0 == fully convolutional
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 2 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device cuda \
--report feb_23_exp8e_lamp_eminst \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cpu \
+-report feb_24_exp8e_mince_eminst \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate conv_kernel conv_resnet_layers conv_resnet_sub_layers embedding_size \
+-params_grid learning_rate conv_first_kernel embedding_layers_hidden_func conv_resnet_layers embedding_layers embedding_size \
 -learning_rate 1e-3 3e-4 \
 -overlap_coef 1.3 \
 -slope_coef 1.0 \
 -neg_coef 1.0 \
--embedding_layers 0 \
+-embedding_layers 2 3 0 \
+-embedding_layers_hidden_func kaf maxout \
 -embedding_layers_hidden 512 \
 -leaky_relu_slope 0.01 \
 -datasource_type eminst \
--embedding_size 16 32 64 \
+-embedding_size 8 4 16 \
 -embedding_function none \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
 -conv_first_kernel 7 5 \
--conv_kernel 5 3 \
--conv_resnet_layers 4 5 2 \
--conv_resnet_sub_layers 3 1 0 \
+-conv_kernel 5 \
+-conv_resnet_layers 4 6 \
+-conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -exp_coef 2.0 \
 -triplet_sampler_var all \
