@@ -91,7 +91,7 @@ parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
-parser.add_argument('-triplet_loss', default='exp8b', type=str)
+parser.add_argument('-triplet_loss', default='exp9', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -105,7 +105,7 @@ parser.add_argument('-tan_coef', default=20.0, type=float)
 parser.add_argument('-sin_coef', default=20.0, type=float)
 parser.add_argument('-kl_coef', default=1e-3, type=float)
 
-parser.add_argument('-slope_coef', default=4.0, type=float)
+parser.add_argument('-slope_coef', default=3.0, type=float)
 parser.add_argument('-neg_coef', default=0.8, type=float)
 parser.add_argument('-pos_coef', default=1.0, type=float)
 
@@ -342,7 +342,14 @@ def forward(batch, output_by_y):
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
 
-    if args.triplet_loss == 'exp8d':
+    if args.triplet_loss == 'exp9':
+        pos = sampled['positives_dist'] / max_distance
+        neg = sampled['negatives_dist'] / max_distance
+
+        loss_pos = torch.mean(torch.clamp(pos - C_norm, 0.0) ** args.exp_coef)
+        loss_neg = torch.mean(torch.clamp(0.5 - neg, 0.0) ** args.exp_coef)
+        loss = (loss_pos + loss_neg)**(1.0/args.exp_coef)
+    elif args.triplet_loss == 'exp8d':
         pos = sampled['positives_dist'] / max_distance
         neg = sampled['negatives_dist'] / max_distance
 
@@ -354,7 +361,7 @@ def forward(batch, output_by_y):
         neg = sampled['negatives_dist'] / max_distance
 
         loss_pos = torch.mean(args.slope_coef * torch.exp(torch.clamp(pos - C_norm, 0.0))) - 1.0
-        loss_neg = torch.mean(torch.exp(args.slope_coef * args.neg_coef * torch.clamp(0.5 - neg, 0.0))) - 1.0
+        loss_neg = torch.mean(args.neg_coef * torch.exp(args.slope_coef * torch.clamp(0.5 - neg, 0.0))) - 1.0
         loss = loss_pos + loss_neg
     elif args.triplet_loss == 'exp8c':
         pos = sampled['positives_dist'] / max_distance

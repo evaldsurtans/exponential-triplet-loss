@@ -30,7 +30,8 @@ import modules.torch_utils as torch_utils
 # Variant without affline, fully convolutional net
 # fixed refined part pooling
 from modules.layer_kaf import KAF
-from modules.layer_maxout import Maxout
+from modules.layer_maxout import Maxout, MaxoutLinear
+
 
 # https://github.com/ispamm/kernel-activation-functions/blob/master/pytorch/demo_kaf_convolutional.py
 
@@ -59,12 +60,14 @@ class Model(torch.nn.Module):
                 if idx == args.embedding_layers - 1:
                     output_size_emb = args.embedding_size
 
-                self.layers_embedding.add_module(f'linear_{idx}', torch.nn.Linear(input_size_emb, output_size_emb, bias=False))
+                if self.args.embedding_layers_hidden_func != 'maxout' or idx == args.embedding_layers - 1:
+                    self.layers_embedding.add_module(f'linear_{idx}', torch.nn.Linear(input_size_emb, output_size_emb, bias=False))
+
                 if idx < args.embedding_layers - 1:
                     if self.args.embedding_layers_hidden_func == 'kaf':
                         self.layers_embedding.add_module(f'kaf_{idx}', KAF(num_parameters=output_size_emb))
                     elif self.args.embedding_layers_hidden_func == 'maxout':
-                        self.layers_embedding.add_module(f'maxout_{idx}', Maxout(pool_size=1))
+                        self.layers_embedding.add_module(f'maxout_{idx}', MaxoutLinear(input_size_emb, output_size_emb, pool_size=6))
                     else:
                         self.layers_embedding.add_module(f'relu_linear_{idx}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
                 input_size_emb = output_size_emb
@@ -168,12 +171,12 @@ class Model(torch.nn.Module):
 
         output_enc = self.layers_encoder.forward(x)
 
-        inp = output_enc
-        for name, each in self.layers_embedding.named_children():
-            print(f'{name} in: {inp.size()}')
-            out = each.forward(inp)
-            print(f'{name} out: {out.size()}')
-            inp = out
+        # inp = output_enc
+        # for name, each in self.layers_embedding.named_children():
+        #     print(f'{name} in: {inp.size()}')
+        #     out = each.forward(inp)
+        #     print(f'{name} out: {out.size()}')
+        #     inp = out
 
         output_emb = self.layers_embedding.forward(output_enc)
 
