@@ -45,13 +45,13 @@ cd ~/Documents/fassion_minst/
 
 # -embedding_layers 0 == fully convolutional
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 3 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 999 -device cuda \
--report mar_6_exp9_exclusion \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 999 -device cuda \
+-report mar_6_exp10_exclusion \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid overlap_coef learning_rate embedding_norm \
+-params_grid overlap_coef learning_rate neg_coef pos_coef \
 -learning_rate 1e-3 1e-4 \
 -overlap_coef 1.3 1.0 1.5 \
 -slope_coef 1.0 \
@@ -70,15 +70,16 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--exp_coef 3.0 \
 -triplet_sampler_var all \
--triplet_loss exp9 \
+-neg_coef 2.0 2.0 1.0 \
+-pos_coef 3.0 3.0 1.0 \
+-triplet_loss exp10 \
 -is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm unit_range l2 \
+-embedding_norm unit_range \
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \

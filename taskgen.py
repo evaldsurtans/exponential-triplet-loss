@@ -288,7 +288,7 @@ for idx_comb, params_comb in enumerate(grid):
     params_comb['params_report'] = ' '.join(args.params_report)
     params_comb['repeat_id'] = task_settings['repeat_id']
 
-    for _ in range(args.repeat):
+    for idx_repeat in range(args.repeat):
         task_settings['id'] += 1
         save_hpc_settings()
         params_comb['id'] = task_settings['id']
@@ -437,10 +437,9 @@ for idx_comb, params_comb in enumerate(grid):
                 else:
                     fp.write(f'wait\n')
 
-
         process_per_task += 1
-
-        if process_per_task == max_process_per_task:
+        if process_per_task == max_process_per_task or \
+                (idx_comb == len(grid)-1 and idx_repeat == args.repeat-1):
             process_per_task = 0
             windows_log_list = []
 
