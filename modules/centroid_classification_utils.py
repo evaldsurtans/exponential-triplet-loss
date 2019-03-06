@@ -35,9 +35,34 @@ from modules.math_utils import cosine_similarity, normalize_vec
 
 class CentroidClassificationUtils(object):
 
+    @staticmethod
+    def get_distance(x1, x2, triplet_similarity):
+        axis = 1
+
+        if isinstance(x1, np.ndarray):
+            if len(x1.shape) == 1:
+                x1 = np.expand_dims(x1, 0)
+                x2 = np.expand_dims(x2, 0)
+        else:
+            if len(x1.size()) == 1:
+                x1 = x1.unsqueeze(0)
+                x2 = x2.unsqueeze(0)
+
+        if triplet_similarity == 'cos':
+            if isinstance(x1, np.ndarray):
+                dist = sklearn.metrics.pairwise.cosine_distances(x1, x2)
+            else:
+                dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+        else:
+            if isinstance(x1, np.ndarray):
+                dist = sklearn.metrics.pairwise.paired_euclidean_distances(x1, x2)
+            else:
+                dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
+        return dist
+
     # @type = 'range' 'closest'
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range', norm='l2'):
+    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None):
 
         class_centroids_noncomputed = {}
         for idx, embedding in enumerate(embeddings):
@@ -46,20 +71,20 @@ class CentroidClassificationUtils(object):
                 class_centroids_noncomputed[y] = []
             class_centroids_noncomputed[y].append(embedding)
 
-        class_centroids = {}
-        class_max_dist = {}
-        for key in class_centroids_noncomputed.keys():
-            np_all_centroids = np.array(class_centroids_noncomputed[key])
-            class_centroids[key] = np.average(np_all_centroids, axis=0)
-            if norm == 'l2':
-                class_centroids[key] = normalize_vec(class_centroids[key])
+        if class_max_dist is None:
+            class_centroids = {}
+            class_max_dist = {}
+            for key in class_centroids_noncomputed.keys():
+                np_all_centroids = np.array(class_centroids_noncomputed[key])
+                class_centroids[key] = np.average(np_all_centroids, axis=0)
+                if norm == 'l2':
+                    class_centroids[key] = normalize_vec(class_centroids[key])
 
-            list_dists = []
-            for emb in np_all_centroids:
-                list_dists.append(cosine_similarity(class_centroids[key], emb))
-            list_dists = sorted(list_dists, reverse=False)
-            list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
-            class_max_dist[key] = list_dists[-1] # last largest distance
+                np_class_centroids_tiled = np.tile(class_centroids[key], (len(np_all_centroids),1))
+                list_dists = CentroidClassificationUtils.get_distance(np_class_centroids_tiled, np_all_centroids, triplet_similarity).tolist()
+                list_dists = sorted(list_dists, reverse=False)
+                list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
+                class_max_dist[key] = list_dists[-1] # last largest distance
 
         predicted = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
@@ -96,8 +121,7 @@ class CentroidClassificationUtils(object):
 
         if type == 'range':
             predicted = predicted / np.sum(predicted, keepdims=True)
-        max_dist = np.average(list(class_max_dist.values()))
 
-        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), max_dist
+        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids
 
 

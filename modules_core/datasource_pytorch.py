@@ -14,7 +14,7 @@ import math
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import torchvision
+import torchvision # pip install git+git://github.com/pytorch/vision.git
 import torchvision.transforms.functional
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import tensorboardX
@@ -111,11 +111,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
 
             FileUtils.unlock_file(fp_download_lock)
 
-
-        self.classes = self.dataset.test_labels if is_test_data else self.dataset.train_labels
-        if isinstance(self.classes, torch.Tensor):
-            self.classes = self.classes.numpy()
-        self.classes = np.arange(np.max(self.classes) + 1).tolist()
+        self.classes = np.arange(self.dataset.targets.max() + 1).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for img, label_idx in self.dataset:
@@ -143,12 +139,12 @@ class Dataset(torch.utils.data.dataset.Dataset):
         for idx, group in enumerate(groups):
             samples = group['samples']
             self.size_samples += int(len(samples) / self.args.triplet_positives)
-            #logging.info(f'group:{idx} samples:{len(samples)}')
-            random.shuffle(samples)
         self.groups = groups
 
         # for debugging purposes
+        # DEBUGGING
         if self.args.datasource_size_samples > 0:
+            logging.info(f'debugging: reduced data size {self.args.datasource_size_samples}')
             self.size_samples = self.args.datasource_size_samples
 
         logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
@@ -159,7 +155,8 @@ class Dataset(torch.utils.data.dataset.Dataset):
         self.reshuffle()
 
     def reshuffle(self):
-        random.shuffle(self.groups)
+        # groups must not be shuffled
+
         for idx, group in enumerate(self.groups):
             samples = group['samples']
             random.shuffle(samples)

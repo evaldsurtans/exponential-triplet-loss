@@ -41,7 +41,7 @@ class TripletSampler(object):
         if self.args.triplet_similarity == 'cos':
             dist = 1. - F.cosine_similarity(x1, x2, dim=0, eps=1e-20) # -1 .. 1 => 0 .. 2
         else:
-            dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
+            dist = F.pairwise_distance(x1.unsqueeze(0), x2.unsqueeze(0), eps=1e-20) # 0 .. 2
         return dist
 
     def sample_batch(self, output, y, margin, max_distance=2.0):

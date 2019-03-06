@@ -73,8 +73,8 @@ parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
 # https://omoindrot.github.io/triplet-loss
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
-parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
-parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 non2
+parser.add_argument('-triplet_similarity', default='euclidean', type=str) # cos euclidean
+parser.add_argument('-embedding_norm', default='none', type=str) #unit_range l2 none
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
@@ -256,6 +256,7 @@ if os.path.exists(run_path):
 tensorboard_writer = tensorboardX.SummaryWriter(log_dir=run_path)
 tensorboard_utils = TensorBoardUtils(tensorboard_writer)
 logging_utils = LoggingUtils(filename=os.path.join(run_path, 'log.txt'))
+is_logged_cnorm = False
 
 get_data_loaders = getattr(__import__('modules_core.' + args.datasource, fromlist=['get_data_loaders']), 'get_data_loaders')
 data_loader_train, data_loader_test = get_data_loaders(args)
@@ -304,7 +305,6 @@ elif args.optimizer == 'rmsprop':
         weight_decay=args.weight_decay
     )
 
-
 def calc_err(meter):
     fpr, tpr, thresholds = roc_curve(meter.targets, meter.scores)
     eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
@@ -313,6 +313,8 @@ def calc_err(meter):
 
 
 def forward(batch, output_by_y):
+    global is_logged_cnorm
+
     y = batch[0].to(args.device)
     x = batch[1].to(args.device)
 
@@ -341,6 +343,10 @@ def forward(batch, output_by_y):
     C_norm = args.overlap_coef/K
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
+
+    if not is_logged_cnorm:
+        is_logged_cnorm = True
+        logging.info(f'K: {K} C_norm: {C_norm} max_distance: {max_distance}')
 
     if args.triplet_loss == 'exp9':
         pos = sampled['positives_dist'] / max_distance
@@ -815,7 +821,7 @@ for epoch in range(1, args.epochs_count + 1):
                 output_y_labels.append(label)
                 output_y.append(key)
 
-        predicted, target, target_y, max_dist = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm)
+        predicted, target, target_y, class_max_dist, class_centroids = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity)
 
         meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
 
@@ -823,16 +829,17 @@ for epoch in range(1, args.epochs_count + 1):
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc'].add(tmp1[0], tmp2[0])
 
-        predicted, target, target_y, max_dist = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm)
+        predicted, target, target_y, class_max_dist, class_centroids = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity, class_max_dist=class_max_dist, class_centroids=class_centroids)
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
 
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc2'].add(tmp1[0], tmp2[0])
-        state[f'{meter_prefix}_max_dist'] = max_dist
+        state[f'{meter_prefix}_max_dist'] = np.average(list(class_max_dist.values()))
 
-        max_embeddings_per_class = 100
+        # sampling of embeddings
+        max_embeddings_per_class = 200
         output_embeddings = []
         output_y_labels = []
         output_y = []
@@ -859,6 +866,37 @@ for epoch in range(1, args.epochs_count + 1):
             label_img=torch.FloatTensor(np.array(output_y_images)),
             metadata=output_y_labels,
             global_step=epoch, tag=f'{meter_prefix}_embeddings')
+
+        # sampling of closest class embedding distances pairs
+        hist_positives_dist_closest = []
+        hist_negatives_dist_closest = []
+        keys = list(output_by_y.keys())
+        for idx_key_a, key_a in enumerate(keys):
+
+            closest_key_b = key_a
+            closest_dist = float('Inf')
+
+            for idx_key_b in range(idx_key_a+1, len(keys)):
+                key_b = keys[idx_key_b]
+
+                # find closest class
+                dist = CentroidClassificationUtils.get_distance(class_centroids[key_a], class_centroids[key_b], args.triplet_similarity)
+                if closest_dist > dist:
+                    closest_dist = dist
+                    closest_key_b = key_b
+
+            if closest_key_b != key_a:
+                embeddings_positive = np.array(output_by_y[key_a]['embeddings'])
+                embeddings_negative = np.array(output_by_y[closest_key_b]['embeddings'])
+
+                embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_positive), 1))
+                hist_positives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_positive, embeddings_positive_center, args.triplet_similarity).tolist()
+                embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_negative), 1))
+                hist_negatives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_negative, embeddings_positive_center, args.triplet_similarity).tolist()
+
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_pos', np.array(hist_positives_dist_closest), epoch, bins=histogram_bins)
+        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_neg', np.array(hist_negatives_dist_closest), epoch, bins=histogram_bins)
+        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_closest), np.array(hist_negatives_dist_closest), f'hist_{meter_prefix}_closest', epoch)
 
         state[f'{meter_prefix}_negative_max'] = negative_max
         state[f'{meter_prefix}_acc_range'] = meters[f'{meter_prefix}_acc_range'].value()[0]
