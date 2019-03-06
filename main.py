@@ -91,7 +91,7 @@ parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
-parser.add_argument('-triplet_loss', default='exp9', type=str)
+parser.add_argument('-triplet_loss', default='exp10', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -106,8 +106,8 @@ parser.add_argument('-sin_coef', default=20.0, type=float)
 parser.add_argument('-kl_coef', default=1e-3, type=float)
 
 parser.add_argument('-slope_coef', default=3.0, type=float)
-parser.add_argument('-neg_coef', default=0.8, type=float)
-parser.add_argument('-pos_coef', default=1.0, type=float)
+parser.add_argument('-neg_coef', default=2.0, type=float)
+parser.add_argument('-pos_coef', default=3.0, type=float)
 
 parser.add_argument('-pos_samples_min_count', default=100, type=int)
 parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -348,7 +348,14 @@ def forward(batch, output_by_y):
         is_logged_cnorm = True
         logging.info(f'K: {K} C_norm: {C_norm} max_distance: {max_distance}')
 
-    if args.triplet_loss == 'exp9':
+    pos_norm = sampled['positives_dist'] / max_distance
+    neg_norm = sampled['negatives_dist'] / max_distance
+
+    if args.triplet_loss == 'exp10':
+        loss_pos = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
+        loss_neg = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
+        loss = loss_pos**args.pos_coef + loss_neg**args.neg_coef
+    elif args.triplet_loss == 'exp9':
         pos = sampled['positives_dist'] / max_distance
         neg = sampled['negatives_dist'] / max_distance
 

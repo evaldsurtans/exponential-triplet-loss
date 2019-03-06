@@ -45,16 +45,15 @@ cd ~/Documents/fassion_minst/
 
 # -embedding_layers 0 == fully convolutional
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 3 \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 3 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 999 -device cuda \
--report mar_4_exp9_exclude \
+-report mar_6_exp9_exclusion \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid overlap_coef learning_rate datasource_exclude_train_class_ids \
+-params_grid overlap_coef learning_rate embedding_norm \
 -learning_rate 1e-3 1e-4 \
--overlap_coef 1.3 1.1 1.5 \
--datasource_exclude_train_class_ids 3 10 \
+-overlap_coef 1.3 1.0 1.5 \
 -slope_coef 1.0 \
 -neg_coef 1.0 \
 -embedding_layers 0 \
@@ -62,7 +61,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -embedding_layers_hidden 512 \
 -leaky_relu_slope 0.01 \
 -datasource_type eminst \
--embedding_size 16 \
+-embedding_size 8 \
 -embedding_function none \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
@@ -79,7 +78,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm l2 \
+-embedding_norm unit_range l2 \
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
