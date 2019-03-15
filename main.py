@@ -73,8 +73,8 @@ parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
 # https://omoindrot.github.io/triplet-loss
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
-parser.add_argument('-triplet_similarity', default='euclidean', type=str) # cos euclidean
-parser.add_argument('-embedding_norm', default='none', type=str) #unit_range l2 none
+parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
+parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 none
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
@@ -83,7 +83,7 @@ parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[]
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
 
-parser.add_argument('-epochs_count', default=30, type=int)
+parser.add_argument('-epochs_count', default=20, type=int)
 
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
@@ -141,7 +141,7 @@ parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
-parser.add_argument('-early_stopping_patience', default=3, type=int)
+parser.add_argument('-early_stopping_patience', default=5, type=int)
 parser.add_argument('-early_stopping_param', default='train_acc_closest', type=str)
 parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
@@ -351,7 +351,17 @@ def forward(batch, output_by_y):
     pos_norm = sampled['positives_dist'] / max_distance
     neg_norm = sampled['negatives_dist'] / max_distance
 
-    if args.triplet_loss == 'exp10':
+    if args.triplet_loss == 'exp12':
+        eps = 1e-20
+        loss_pos = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
+        loss_neg = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
+        loss = -torch.log(1.0 - (loss_pos/(1.-C_norm+args.pos_coef)) + args.pos_coef + eps) + \
+               -torch.log(1.0 - (loss_neg/(0.5+args.neg_coef)) + args.neg_coef + eps)
+    elif args.triplet_loss == 'exp11':
+        loss_pos = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
+        loss_neg = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
+        loss = torch.exp(args.neg_coef * loss_neg) + torch.exp(args.pos_coef * loss_pos) - 2.0
+    elif args.triplet_loss == 'exp10':
         loss_pos = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
         loss_neg = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
         loss = loss_pos**args.pos_coef + loss_neg**args.neg_coef
@@ -541,7 +551,6 @@ def forward(batch, output_by_y):
         b = args.lossless_beta
         e = 1e-20
         loss = -torch.log10(-pos/b + 1.0 +e) - torch.log10(-(1.0-neg)/b + 1 + e)
-
 
     if args.is_center_loss or args.is_kl_loss:
         centers = []
@@ -748,8 +757,9 @@ for epoch in range(1, args.epochs_count + 1):
 
             if data_loader == data_loader_train:
                 if result['loss'] is not None:
-                    result['loss'].backward()
-                    optimizer_func.step()
+                    if result['loss'].grad_fn is not None: # in case all samples in batch does not require training
+                        result['loss'].backward()
+                        optimizer_func.step()
 
             if result['loss'] is not None:
                 meters[f'{meter_prefix}_loss'].add(np.median(to_numpy(result['loss'])))
@@ -791,7 +801,10 @@ for epoch in range(1, args.epochs_count + 1):
 
             for idx, y_each in enumerate(y):
                 if y_each not in output_by_y.keys():
-                    y_label = data_loader_test.dataset.classes[y_each]
+                    if data_loader == data_loader_train:
+                        y_label = data_loader_train.dataset.classes[y_each]
+                    else:
+                        y_label = data_loader_test.dataset.classes[y_each]
                     output_by_y[y_each] = {
                         'embeddings': [],
                         'images': [],

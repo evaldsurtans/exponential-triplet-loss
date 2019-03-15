@@ -37,20 +37,21 @@ class CentroidClassificationUtils(object):
 
     @staticmethod
     def get_distance(x1, x2, triplet_similarity):
-        axis = 1
-
+        is_item = False
         if isinstance(x1, np.ndarray):
             if len(x1.shape) == 1:
+                is_item = True
                 x1 = np.expand_dims(x1, 0)
                 x2 = np.expand_dims(x2, 0)
         else:
             if len(x1.size()) == 1:
                 x1 = x1.unsqueeze(0)
                 x2 = x2.unsqueeze(0)
+                is_item = True
 
         if triplet_similarity == 'cos':
             if isinstance(x1, np.ndarray):
-                dist = sklearn.metrics.pairwise.cosine_distances(x1, x2)
+                dist = sklearn.metrics.pairwise.cosine_distances(x1, x2)[0]
             else:
                 dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
         else:
@@ -58,6 +59,9 @@ class CentroidClassificationUtils(object):
                 dist = sklearn.metrics.pairwise.paired_euclidean_distances(x1, x2)
             else:
                 dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
+
+        if is_item:
+            dist = dist[0]
         return dist
 
     # @type = 'range' 'closest'
@@ -86,8 +90,8 @@ class CentroidClassificationUtils(object):
                 list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
                 class_max_dist[key] = list_dists[-1] # last largest distance
 
-        predicted = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
-        target = np.zeros( (embeddings.shape[0], len(class_centroids.keys())), dtype=np.float )
+        predicted = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
+        target = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
         target_y = []
 
         for idx, embedding in enumerate(embeddings):
@@ -103,7 +107,7 @@ class CentroidClassificationUtils(object):
                 max_dist = class_max_dist[key]
 
                 # calculate if in range of some centroid other than real one
-                dist = cosine_similarity(embedding, y_embedding)
+                dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
 
                 if type == 'range':
                     if max_dist > dist:

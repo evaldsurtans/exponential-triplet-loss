@@ -75,7 +75,7 @@ class TripletSampler(object):
 
         distances_batch = self.get_distances(output)
 
-        step = self.args.triplet_positives
+        step = 1
         if self.args.triplet_sampler_var == 'hard':
             step = self.args.triplet_positives
 
