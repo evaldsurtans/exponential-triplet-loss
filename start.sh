@@ -49,9 +49,9 @@ cd ~/Documents/fassion_minst/
 # eminst 9 == "9" (maybe y, g)
 # -datasource_exclude_train_class_ids 9 31 \
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 0 -device cuda \
--report mar_13_exp11_opt \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device cuda \
+-report mar_13_exp12_opt \
 -batch_size 114 \
 -triplet_positives 3 \
 -optimizer adam \
@@ -74,9 +74,9 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -triplet_sampler_var hard \
--neg_coef 8.0 6.0 10.0 \
--pos_coef 5.0 2.0 7.0 \
--triplet_loss exp11 \
+-neg_coef 5e-2 1e-3 1e-1 \
+-pos_coef 1e-2 1e-1 1e-3 \
+-triplet_loss exp12 \
 -is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
@@ -94,6 +94,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -is_hpc True \
 -is_quick_test False \
 -single_task False
+
 
 # euclidean unit_range
 # cos l2

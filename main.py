@@ -337,12 +337,16 @@ def forward(batch, output_by_y):
     else:
         margin_distance = args.triplet_loss_margin
 
-    sampled = triplet_sampler.sample_batch(output, y, margin_distance, max_distance)
-
     K = len(data_loader_train.dataset.classes)
     C_norm = args.overlap_coef/K
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
+
+    # in case of exp mining we should use normalized margin from C_norm
+    if 'abs_margin' in args.filter_samples or 'abs_margin_asym' in args.filter_samples:
+        margin_distance = C_norm
+
+    sampled = triplet_sampler.sample_batch(output, y, margin_distance, max_distance)
 
     if not is_logged_cnorm:
         is_logged_cnorm = True
