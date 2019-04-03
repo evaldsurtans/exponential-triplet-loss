@@ -49,21 +49,35 @@ cd ~/Documents/fassion_minst/
 # eminst 9 == "9" (maybe y, g)
 # -datasource_exclude_train_class_ids 9 31 \
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9990 -device cuda \
--report mar_13_exp12_opt \
--batch_size 114 \
+#-batch_size 76 44 128 152 \
+#-triplet_positives 4 \
+
+#-batch_size 95 55 160 \
+#-triplet_positives 5 \
+
+# 57 33 96 114
+
+
+# v100 k40 8 12
+
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
+-report mar_28_std_fassion \
+-batch_size 57 114 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid neg_coef pos_coef embedding_norm learning_rate embedding_layers \
--learning_rate 1e-3 1e-4 \
--overlap_coef 1.5 \
+-params_grid learning_rate batch_size embedding_layers triplet_sampler_var triplet_loss_margin \
+-learning_rate 1e-3 1e-4 1e-5 \
+-overlap_coef 1.0 \
 -slope_coef 1.0 \
--embedding_layers 0 2 \
+-neg_coef 2.0 \
+-pos_coef 2.0 \
+-triplet_loss standard \
+-embedding_layers 0 1 2 \
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 512 \
 -leaky_relu_slope 0.01 \
--datasource_type eminst \
+-datasource_type fassion_minst \
 -embedding_size 32 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
@@ -73,21 +87,18 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_sampler_var hard \
--neg_coef 5e-2 1e-3 1e-1 \
--pos_coef 1e-2 1e-1 1e-3 \
--triplet_loss exp12 \
+-triplet_sampler_var all hard \
 -is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm l2 none \
+-embedding_norm unit_range \
 -triplet_similarity cos \
--filter_samples none \
+-filter_samples semi_hard \
 -is_triplet_loss_margin_auto False \
--triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_5_zipper  \
+-triplet_loss_margin 0.2 0.1 0.05 \
+-triplet_sampler triplet_sampler_4  \
 -model model_8_lamp \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

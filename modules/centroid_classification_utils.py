@@ -66,10 +66,15 @@ class CentroidClassificationUtils(object):
 
     # @type = 'range' 'closest'
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None):
+    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None, distances_precomputed={}):
 
         class_centroids_noncomputed = {}
         for idx, embedding in enumerate(embeddings):
+
+            if np.isnan(embedding).any():
+                logging.error(f'calulate_classes NaN: {idx}')
+                continue
+
             y = y_list[idx]
             if y not in class_centroids_noncomputed:
                 class_centroids_noncomputed[y] = []
@@ -95,37 +100,49 @@ class CentroidClassificationUtils(object):
         target_y = []
 
         for idx, embedding in enumerate(embeddings):
-            y_idx_real = y_list[idx]
+            try:
+                y_idx_real = y_list[idx]
 
-            closest_dist = float('Inf')
-            closest_idx = list(class_centroids.keys())[0]
+                closest_dist = float('Inf')
+                closest_idx = list(class_centroids.keys())[0]
 
-            for key in class_centroids.keys():
+                for y_idx in class_centroids.keys():
 
-                y_idx = key
-                y_embedding = class_centroids[key]
-                max_dist = class_max_dist[key]
+                    y_embedding = class_centroids[y_idx]
+                    max_dist = class_max_dist[y_idx]
 
-                # calculate if in range of some centroid other than real one
-                dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
+                    # calculate if in range of some centroid other than real one
+                    dist = None
+                    if y_idx in distances_precomputed.keys():
+                        if y_idx_real in distances_precomputed[y_idx].keys():
+                            dist = distances_precomputed[y_idx][y_idx_real]
+                    else:
+                        distances_precomputed[y_idx] = {}
+                    if dist is None:
+                        dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
+                        distances_precomputed[y_idx][y_idx_real] = dist
 
-                if type == 'range':
-                    if max_dist > dist:
-                        predicted[idx][y_idx] += 1.0
+                    if type == 'range':
+                        if max_dist >= dist:
+                            predicted[idx][y_idx] += 1.0
 
-                if closest_dist > dist:
-                    closest_dist = dist
-                    closest_idx = y_idx
+                    if closest_dist > dist:
+                        closest_dist = dist
+                        closest_idx = y_idx
 
-            if type == 'closest':
-                predicted[idx][closest_idx] = 1.0
+                if type == 'closest':
+                    predicted[idx][closest_idx] = 1.0
 
-            target[idx][y_idx_real] = 1.0
-            target_y.append(y_idx_real)
+                target[idx][y_idx_real] = 1.0
+                target_y.append(y_idx_real)
+            except Exception as e:
+                logging.error(str(e))
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
 
         if type == 'range':
-            predicted = predicted / np.sum(predicted, keepdims=True)
+            predicted = predicted / np.sum(predicted, axis=1, keepdims=True)
 
-        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids
+        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids, distances_precomputed
 
 

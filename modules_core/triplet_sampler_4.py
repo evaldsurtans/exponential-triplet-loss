@@ -95,7 +95,7 @@ class TripletSampler(object):
                         positives_dist_all.append(anchor_distances[idx_positive])
 
                     if 'abs_margin' in self.args.filter_samples or 'abs_margin_asym' in self.args.filter_samples:
-                        if anchor_distances[idx_positive]/max_distance > margin:
+                        if anchor_distances[idx_positive]/max_distance < margin: # if under margin then skip (already in positive range)
                             continue
 
                     if idx_positive > idx_anchor:
@@ -123,7 +123,7 @@ class TripletSampler(object):
                         negatives_dist_all.append(anchor_distances[idx_negative])
 
                     if 'abs_margin' in self.args.filter_samples or 'abs_margin_asym' in self.args.filter_samples:
-                        if (max_distance - anchor_distances[idx_negative])/max_distance < 0.5:
+                        if anchor_distances[idx_negative]/max_distance > 0.5:  # if over half then skip (already in futher away as needed)
                             continue
 
                     # this line will execute only after getting positive_dist and then will apply to pair of samples

@@ -141,7 +141,7 @@ parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
-parser.add_argument('-early_stopping_patience', default=5, type=int)
+parser.add_argument('-early_stopping_patience', default=3, type=int)
 parser.add_argument('-early_stopping_param', default='train_acc_closest', type=str)
 parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
@@ -845,7 +845,7 @@ for epoch in range(1, args.epochs_count + 1):
                 output_y_labels.append(label)
                 output_y.append(key)
 
-        predicted, target, target_y, class_max_dist, class_centroids = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity)
+        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity)
 
         meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
 
@@ -853,7 +853,7 @@ for epoch in range(1, args.epochs_count + 1):
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc'].add(tmp1[0], tmp2[0])
 
-        predicted, target, target_y, class_max_dist, class_centroids = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity, class_max_dist=class_max_dist, class_centroids=class_centroids)
+        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity, class_max_dist=class_max_dist, class_centroids=class_centroids, distances_precomputed=distances_precomputed)
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
 
