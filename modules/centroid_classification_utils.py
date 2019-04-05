@@ -141,7 +141,7 @@ class CentroidClassificationUtils(object):
                 logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
 
         if type == 'range':
-            predicted = predicted / np.sum(predicted, axis=1, keepdims=True)
+            predicted = predicted / (np.sum(predicted, axis=1, keepdims=True) + 1e-20)
 
         return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids, distances_precomputed
 

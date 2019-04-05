@@ -60,20 +60,23 @@ cd ~/Documents/fassion_minst/
 
 # v100 k40 8 12
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report mar_28_std_fassion \
--batch_size 57 114 \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
+-report apr_4_exp10_fassion \
+-batch_size 33 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate batch_size embedding_layers triplet_sampler_var triplet_loss_margin \
+-params_grid learning_rate max_embeddings_per_class_train max_embeddings_per_class_test max_embeddings_histograms \
 -learning_rate 1e-3 1e-4 1e-5 \
+-max_embeddings_per_class_train 100 500 0 \
+-max_embeddings_per_class_test 100 500 0 \
+-max_embeddings_histograms 2000 1000 0 \
 -overlap_coef 1.0 \
 -slope_coef 1.0 \
 -neg_coef 2.0 \
 -pos_coef 2.0 \
--triplet_loss standard \
--embedding_layers 0 1 2 \
+-triplet_loss exp10 \
+-embedding_layers 1 \
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 512 \
 -leaky_relu_slope 0.01 \
@@ -87,7 +90,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_sampler_var all hard \
+-triplet_sampler_var all \
 -is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
@@ -95,10 +98,10 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -lossless_beta 1.2 \
 -embedding_norm unit_range \
 -triplet_similarity cos \
--filter_samples semi_hard \
+-filter_samples none \
 -is_triplet_loss_margin_auto False \
--triplet_loss_margin 0.2 0.1 0.05 \
--triplet_sampler triplet_sampler_4  \
+-triplet_loss_margin 0.2\
+-triplet_sampler triplet_sampler_5_zipper  \
 -model model_8_lamp \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

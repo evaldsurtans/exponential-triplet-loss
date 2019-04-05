@@ -149,6 +149,10 @@ parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
+parser.add_argument('-max_embeddings_histograms', default=2000, type=int)
+parser.add_argument('-max_embeddings_per_class_test', default=150, type=int)
+parser.add_argument('-max_embeddings_per_class_train', default=50, type=int)
+
 args, args_other = parser.parse_known_args()
 
 tmp = [
@@ -778,32 +782,38 @@ for epoch in range(1, args.epochs_count + 1):
             meters[f'{meter_prefix}_count_positives_all'].add(float(result['positives_dist_all_filtred'].size(0)))
             meters[f'{meter_prefix}_count_negatives_all'].add(float(result['negatives_dist_all_filtred'].size(0)))
 
-            avg_positives_dist_all = np.average(to_numpy(result['positives_dist_all']))
-            np_negatives_dist_all = to_numpy(result['negatives_dist_all'])
-            negative_max = max(negative_max, np.max(np_negatives_dist_all))
-            avg_negatives_dist_all = np.average(np_negatives_dist_all)
+            if len(hist_positives_dist) < args.max_embeddings_histograms or args.max_embeddings_histograms <= 0:
+                avg_positives_dist_all = np.average(to_numpy(result['positives_dist_all']))
+                np_negatives_dist_all = to_numpy(result['negatives_dist_all'])
+                negative_max = max(negative_max, np.max(np_negatives_dist_all))
+                avg_negatives_dist_all = np.average(np_negatives_dist_all)
 
-            hist_positives_dist.append(avg_positives_dist_all)
-            hist_negatives_dist.append(avg_negatives_dist_all)
+                hist_positives_dist.append(avg_positives_dist_all)
+                hist_negatives_dist.append(avg_negatives_dist_all)
 
-            meters[f'{meter_prefix}_dist_positives'].add(avg_positives_dist_all)
-            meters[f'{meter_prefix}_dist_negatives'].add(avg_negatives_dist_all)
+                meters[f'{meter_prefix}_dist_positives'].add(avg_positives_dist_all)
+                meters[f'{meter_prefix}_dist_negatives'].add(avg_negatives_dist_all)
 
-            if result['positives_dist'].size(0) > 0:
-                avg_positives_dist_hard = np.average(to_numpy(result['positives_dist']))
-                meters[f'{meter_prefix}_dist_positives_hard'].add(avg_positives_dist_hard)
-                hist_positives_dist_hard.append(avg_positives_dist_hard)
+                if result['positives_dist'].size(0) > 0:
+                    avg_positives_dist_hard = np.average(to_numpy(result['positives_dist']))
+                    meters[f'{meter_prefix}_dist_positives_hard'].add(avg_positives_dist_hard)
+                    hist_positives_dist_hard.append(avg_positives_dist_hard)
 
-            if result['negatives_dist'].size(0) > 0:
-                avg_negatives_dist_hard = np.average(to_numpy(result['negatives_dist']))
-                hist_negatives_dist_hard.append(avg_negatives_dist_hard)
-                meters[f'{meter_prefix}_dist_negatives_hard'].add(avg_negatives_dist_hard)
+                if result['negatives_dist'].size(0) > 0:
+                    avg_negatives_dist_hard = np.average(to_numpy(result['negatives_dist']))
+                    hist_negatives_dist_hard.append(avg_negatives_dist_hard)
+                    meters[f'{meter_prefix}_dist_negatives_hard'].add(avg_negatives_dist_hard)
 
             output = to_numpy(result['output'].to('cpu')).tolist()
             y = to_numpy(result['y']).tolist()
             images = to_numpy(result['x']).tolist()
 
+            max_samples_per_class = args.max_embeddings_per_class_test
+            if data_loader == data_loader_train:
+                max_samples_per_class = args.max_embeddings_per_class_train
+
             for idx, y_each in enumerate(y):
+                # dictionary by y
                 if y_each not in output_by_y.keys():
                     if data_loader == data_loader_train:
                         y_label = data_loader_train.dataset.classes[y_each]
@@ -814,24 +824,33 @@ for epoch in range(1, args.epochs_count + 1):
                         'images': [],
                         'label': y_label,
                     }
-                output_by_y[y_each]['embeddings'].append(output[idx])
-                output_by_y[y_each]['images'].append(images[idx])
+                if max_samples_per_class <= 0 or len(output_by_y[y_each]['embeddings']) < max_samples_per_class:
+                    output_by_y[y_each]['embeddings'].append(output[idx])
+                    output_by_y[y_each]['images'].append(images[idx])
 
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 3:
                 break
 
-        histogram_bins = 'auto'
-        #histogram_bins = 'doane'
+        try:
 
-        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives', np.array(hist_positives_dist), epoch, bins=histogram_bins)
-        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives', np.array(hist_negatives_dist), epoch, bins=histogram_bins)
+            histogram_bins = 'auto'
+            #histogram_bins = 'doane'
 
-        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives_hard', np.array(hist_positives_dist_hard), epoch, bins=histogram_bins)
-        tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives_hard', np.array(hist_negatives_dist_hard), epoch, bins=histogram_bins)
+            tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives', np.array(hist_positives_dist), epoch, bins=histogram_bins)
+            tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives', np.array(hist_negatives_dist), epoch, bins=histogram_bins)
 
-        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_{meter_prefix}_all', epoch)
-        tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_hard), np.array(hist_negatives_dist_hard), f'hist_{meter_prefix}_hard', epoch)
+            tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_positives_hard', np.array(hist_positives_dist_hard), epoch, bins=histogram_bins)
+            tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_negatives_hard', np.array(hist_negatives_dist_hard), epoch, bins=histogram_bins)
+
+            tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist), np.array(hist_negatives_dist), f'hist_{meter_prefix}_all', epoch)
+            tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_hard), np.array(hist_negatives_dist_hard), f'hist_{meter_prefix}_hard', epoch)
+
+        except Exception as e:
+            logging.error(str(e))
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+
 
         output_embeddings = []
         output_y_labels = []
@@ -863,7 +882,6 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_max_dist'] = np.average(list(class_max_dist.values()))
 
         # sampling of embeddings
-        max_embeddings_per_class = 200
         output_embeddings = []
         output_y_labels = []
         output_y = []
@@ -871,10 +889,6 @@ for epoch in range(1, args.epochs_count + 1):
         for key in output_by_y.keys():
             embeddings = output_by_y[key]['embeddings']
             images = output_by_y[key]['images']
-
-            if len(embeddings) > max_embeddings_per_class:
-                embeddings = embeddings[:max_embeddings_per_class]
-                images = images[:max_embeddings_per_class]
 
             output_embeddings += embeddings
             output_y_images += images
