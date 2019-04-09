@@ -67,7 +67,7 @@ class CentroidClassificationUtils(object):
 
     # @type = 'range' 'closest'
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None, distances_precomputed={}):
+    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None, distances_precomputed=None):
 
         class_centroids_noncomputed = {}
         for idx_emb, embedding in enumerate(embeddings):
@@ -75,6 +75,9 @@ class CentroidClassificationUtils(object):
             if y not in class_centroids_noncomputed:
                 class_centroids_noncomputed[y] = []
             class_centroids_noncomputed[y].append(embedding)
+
+        if distances_precomputed is None:
+            distances_precomputed = {}
 
         if class_max_dist is None:
             class_centroids = {}
@@ -98,13 +101,13 @@ class CentroidClassificationUtils(object):
         for idx_emb, embedding in enumerate(embeddings):
 
             if np.isnan(embedding).any():
-                logging.error(f'something wrong comming out of model calulate_classes NaN: {idx_emb}')
+                logging.error(f'something wrong coming out of model calulate_classes NaN: {idx_emb}')
                 continue
 
             y_idx_real = y_list[idx_emb]
 
             closest_dist = float('Inf')
-            closest_idx = list(class_centroids.keys())[0]
+            closest_idx = -1 # if cause error then something wrong with code
 
             for key in class_centroids.keys():
 
@@ -139,6 +142,7 @@ class CentroidClassificationUtils(object):
             target_y.append(y_idx_real)
 
         if type == 'range':
+            # predicted sum can be 0 if none in the range
             predicted = predicted /(np.sum(predicted, axis=1, keepdims=True) + 1e-18)
 
         return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids, distances_precomputed

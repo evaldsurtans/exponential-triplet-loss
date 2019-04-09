@@ -81,14 +81,20 @@ class Model(torch.nn.Module):
         elif self.args.embedding_function == 'tanh_shrink':
             self.layers_embedding.add_module('emb_tanh_shrink', torch.nn.Tanhshrink())
 
+        if self.args.embedding_layers_last_norm != 'none':
+            self.layers_embedding.add_module('emb_last_reshape', Reshape(shape=(1, self.args.embedding_size)))
+
         if self.args.embedding_layers_last_norm == 'instance':
-            self.layers_embedding.add_module('emb_last_norm', torch.nn.InstanceNorm1d(self.args.embedding_size))
+            self.layers_embedding.add_module('emb_last_norm', torch.nn.InstanceNorm1d(1))
         elif self.args.embedding_layers_last_norm == 'batch':
-            self.layers_embedding.add_module('emb_last_norm', torch.nn.BatchNorm1d(self.args.embedding_size))
+            self.layers_embedding.add_module('emb_last_norm', torch.nn.BatchNorm1d(1))
         elif self.args.embedding_layers_last_norm == 'layer':
-            self.layers_embedding.add_module('emb_last_norm', torch.nn.LayerNorm(self.args.embedding_size))
+            self.layers_embedding.add_module('emb_last_norm', torch.nn.LayerNorm(1))
         elif self.args.embedding_layers_last_norm == 'local':
-            self.layers_embedding.add_module('emb_last_norm', torch.nn.LocalResponseNorm(self.args.embedding_size))
+            self.layers_embedding.add_module('emb_last_norm', torch.nn.LocalResponseNorm(1))
+
+        if self.args.embedding_layers_last_norm != 'none':
+            self.layers_embedding.add_module('emb_last_reshape_final', Reshape(shape=self.args.embedding_size))
 
         torch_utils.init_parameters(self)
 

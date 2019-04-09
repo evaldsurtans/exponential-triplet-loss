@@ -62,13 +62,14 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report apr_9_exp10_fassion_rep \
+-report apr_9_exp10_fassion_norm_single \
 -batch_size 33 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate overlap_coef \
--learning_rate 1e-3 1e-4 \
--overlap_coef 1.0 3.0 10.0 0.5 \
+-params_grid embedding_layers_last_norm learning_rate overlap_coef \
+-learning_rate 1e-3 1e-4 3e-3 \
+-overlap_coef 1.0 3.0 1.5 \
+-embedding_layers_last_norm none instance batch layer local \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \
 -max_embeddings_histograms 0 \
@@ -102,7 +103,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_5_zipper  \
--model model_8_lamp \
+-model model_10_cold \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \
 -is_hpc True \

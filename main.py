@@ -63,7 +63,7 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_9_mince', type=str)
+parser.add_argument('-model', default='model_10_cold', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
@@ -119,6 +119,7 @@ parser.add_argument('-embedding_size', default=32, type=int)
 parser.add_argument('-embedding_layers', default=0, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
 parser.add_argument('-embedding_layers_hidden_func', default='maxout', type=str)
+parser.add_argument('-embedding_layers_last_norm', default='instance', type=str) # none instance batch layer local
 
 parser.add_argument('-suffix_affine_layers', default=2, type=int)
 parser.add_argument('-suffix_affine_layers_hidden', default=1024, type=int)
@@ -308,6 +309,7 @@ elif args.optimizer == 'rmsprop':
         lr=args.learning_rate,
         weight_decay=args.weight_decay
     )
+
 
 def calc_err(meter):
     fpr, tpr, thresholds = roc_curve(meter.targets, meter.scores)
@@ -869,7 +871,11 @@ for epoch in range(1, args.epochs_count + 1):
             np.array(output_y),
             type='closest',
             norm=args.embedding_norm,
-            triplet_similarity=args.triplet_similarity)
+            triplet_similarity=args.triplet_similarity,
+            class_max_dist=None,
+            class_centroids=None,
+            distances_precomputed=None
+        )
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
 
