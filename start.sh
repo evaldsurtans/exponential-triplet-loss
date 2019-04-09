@@ -62,16 +62,16 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 32 -hpc_gpu_max_queue 9999 -device cuda \
--report apr_4_exp10_fassion \
+-report apr_9_exp10_fassion_rep \
 -batch_size 33 \
 -triplet_positives 3 \
 -optimizer adam \
--params_grid learning_rate max_embeddings_per_class_train max_embeddings_per_class_test max_embeddings_histograms \
--learning_rate 1e-3 1e-4 1e-5 \
--max_embeddings_per_class_train 100 500 0 \
--max_embeddings_per_class_test 100 500 0 \
--max_embeddings_histograms 2000 1000 0 \
--overlap_coef 1.0 \
+-params_grid learning_rate overlap_coef \
+-learning_rate 1e-3 1e-4 \
+-overlap_coef 1.0 3.0 10.0 0.5 \
+-max_embeddings_per_class_test 0 \
+-max_embeddings_per_class_train 0 \
+-max_embeddings_histograms 0 \
 -slope_coef 1.0 \
 -neg_coef 2.0 \
 -pos_coef 2.0 \
@@ -100,7 +100,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
--triplet_loss_margin 0.2\
+-triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_5_zipper  \
 -model model_8_lamp \
 -is_pre_grad_locked False \

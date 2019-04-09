@@ -149,9 +149,9 @@ parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
-parser.add_argument('-max_embeddings_histograms', default=2000, type=int)
-parser.add_argument('-max_embeddings_per_class_test', default=150, type=int)
-parser.add_argument('-max_embeddings_per_class_train', default=50, type=int)
+parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
+parser.add_argument('-max_embeddings_per_class_test', default=500, type=int)
+parser.add_argument('-max_embeddings_per_class_train', default=500, type=int)
 
 args, args_other = parser.parse_known_args()
 
@@ -234,7 +234,7 @@ tmp = [
     'test_negative_max',
     'train_negative_max',
     'test_max_dist',
-    'train_max_dist'
+    'train_max_dist',
     'test_loss',
     'train_loss',
     'epoch_time',
@@ -652,13 +652,13 @@ state = {
     'test_acc_range': -1,
     'best_acc_range': -1,
     'train_acc_range': -1,
-    'test_auc': -1,
-    'train_auc': -1,
+    'test_auc_range': -1,
+    'train_auc_range': -1,
     'test_acc_closest': -1,
     'best_acc_closest': -1,
     'train_acc_closest': -1,
-    'test_auc2': -1,
-    'train_auc2': -1,
+    'test_auc_closest': -1,
+    'train_auc_closest': -1,
     'test_max_dist': -1,
     'train_max_dist': -1,
     'test_eer': -1,
@@ -703,11 +703,11 @@ meters = dict(
     test_acc_closest = tnt.meter.ClassErrorMeter(accuracy=True),
     train_acc_closest = tnt.meter.ClassErrorMeter(accuracy=True),
 
-    test_auc = tnt.meter.AUCMeter(),
-    train_auc = tnt.meter.AUCMeter(),
+    test_auc_range = tnt.meter.AUCMeter(),
+    train_auc_range = tnt.meter.AUCMeter(),
 
-    test_auc2 = tnt.meter.AUCMeter(),
-    train_auc2 = tnt.meter.AUCMeter(),
+    test_auc_closest = tnt.meter.AUCMeter(),
+    train_auc_closest = tnt.meter.AUCMeter(),
 
     train_dist_positives = tnt.meter.AverageValueMeter(),
     train_dist_negatives = tnt.meter.AverageValueMeter(),
@@ -864,22 +864,36 @@ for epoch in range(1, args.epochs_count + 1):
                 output_y_labels.append(label)
                 output_y.append(key)
 
-        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='range', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity)
-
-        meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
-
-        tmp1 = predicted.permute(1, 0).data
-        tmp2 = target.permute(1, 0).data
-        meters[f'{meter_prefix}_auc'].add(tmp1[0], tmp2[0])
-
-        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(np.array(output_embeddings), np.array(output_y), type='closest', norm=args.embedding_norm, triplet_similarity=args.triplet_similarity, class_max_dist=class_max_dist, class_centroids=class_centroids, distances_precomputed=distances_precomputed)
+        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
+            np.array(output_embeddings),
+            np.array(output_y),
+            type='closest',
+            norm=args.embedding_norm,
+            triplet_similarity=args.triplet_similarity)
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
 
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
-        meters[f'{meter_prefix}_auc2'].add(tmp1[0], tmp2[0])
+        meters[f'{meter_prefix}_auc_closest'].add(tmp1[0], tmp2[0])
         state[f'{meter_prefix}_max_dist'] = np.average(list(class_max_dist.values()))
+
+        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
+            np.array(output_embeddings),
+            np.array(output_y),
+            type='range',
+            norm=args.embedding_norm,
+            triplet_similarity=args.triplet_similarity,
+            class_max_dist=class_max_dist,
+            class_centroids=class_centroids,
+            distances_precomputed=distances_precomputed)
+
+        meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
+
+        tmp1 = predicted.permute(1, 0).data
+        tmp2 = target.permute(1, 0).data
+        meters[f'{meter_prefix}_auc_range'].add(tmp1[0], tmp2[0])
+
 
         # sampling of embeddings
         output_embeddings = []
@@ -938,11 +952,11 @@ for epoch in range(1, args.epochs_count + 1):
 
         state[f'{meter_prefix}_negative_max'] = negative_max
         state[f'{meter_prefix}_acc_range'] = meters[f'{meter_prefix}_acc_range'].value()[0]
-        fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc'])
+        fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc_range'])
         state[f'{meter_prefix}_eer'] = eer
 
         state[f'{meter_prefix}_acc_closest'] = meters[f'{meter_prefix}_acc_closest'].value()[0]
-        fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc2'])
+        fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc_closest'])
         state[f'{meter_prefix}_eer2'] = eer
 
         state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]
@@ -990,8 +1004,8 @@ for epoch in range(1, args.epochs_count + 1):
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_eer2', scalar_value=state[f'{meter_prefix}_eer2'], global_step=epoch)
 
         tensorboard_utils.addPlot1D(
-            data=(meters[f'{meter_prefix}_auc'].value()[2], meters[f'{meter_prefix}_auc'].value()[1]),
-            tag=f'{meter_prefix}_auc',
+            data=(meters[f'{meter_prefix}_auc_range'].value()[2], meters[f'{meter_prefix}_auc_range'].value()[1]),
+            tag=f'{meter_prefix}_auc_range',
             global_step=epoch,
             axis_labels=[
                 'False positives',
@@ -999,8 +1013,8 @@ for epoch in range(1, args.epochs_count + 1):
             ]
         )
         tensorboard_utils.addPlot1D(
-            data=(meters[f'{meter_prefix}_auc2'].value()[2], meters[f'{meter_prefix}_auc2'].value()[1]),
-            tag=f'{meter_prefix}_auc2',
+            data=(meters[f'{meter_prefix}_auc_closest'].value()[2], meters[f'{meter_prefix}_auc_closest'].value()[1]),
+            tag=f'{meter_prefix}_auc_closest',
             global_step=epoch,
             axis_labels=[
                 'False positives',

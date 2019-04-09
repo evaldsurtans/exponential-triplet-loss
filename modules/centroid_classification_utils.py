@@ -64,18 +64,14 @@ class CentroidClassificationUtils(object):
             dist = dist[0]
         return dist
 
+
     # @type = 'range' 'closest'
     @staticmethod
     def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None, distances_precomputed={}):
 
         class_centroids_noncomputed = {}
-        for idx, embedding in enumerate(embeddings):
-
-            if np.isnan(embedding).any():
-                logging.error(f'calulate_classes NaN: {idx}')
-                continue
-
-            y = y_list[idx]
+        for idx_emb, embedding in enumerate(embeddings):
+            y = y_list[idx_emb]
             if y not in class_centroids_noncomputed:
                 class_centroids_noncomputed[y] = []
             class_centroids_noncomputed[y].append(embedding)
@@ -99,49 +95,51 @@ class CentroidClassificationUtils(object):
         target = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
         target_y = []
 
-        for idx, embedding in enumerate(embeddings):
-            try:
-                y_idx_real = y_list[idx]
+        for idx_emb, embedding in enumerate(embeddings):
 
-                closest_dist = float('Inf')
-                closest_idx = list(class_centroids.keys())[0]
+            if np.isnan(embedding).any():
+                logging.error(f'something wrong comming out of model calulate_classes NaN: {idx_emb}')
+                continue
 
-                for y_idx in class_centroids.keys():
+            y_idx_real = y_list[idx_emb]
 
-                    y_embedding = class_centroids[y_idx]
-                    max_dist = class_max_dist[y_idx]
+            closest_dist = float('Inf')
+            closest_idx = list(class_centroids.keys())[0]
 
+            for key in class_centroids.keys():
+
+                y_idx = key
+                y_embedding = class_centroids[key]
+                max_dist = class_max_dist[key]
+
+                dist = None
+                if key in distances_precomputed.keys():
+                    if idx_emb in distances_precomputed[key].keys():
+                        dist = distances_precomputed[key][idx_emb]
+                else:
+                    distances_precomputed[key] = {}
+
+                if dist is None:
                     # calculate if in range of some centroid other than real one
-                    dist = None
-                    if y_idx in distances_precomputed.keys():
-                        if y_idx_real in distances_precomputed[y_idx].keys():
-                            dist = distances_precomputed[y_idx][y_idx_real]
-                    else:
-                        distances_precomputed[y_idx] = {}
-                    if dist is None:
-                        dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
-                        distances_precomputed[y_idx][y_idx_real] = dist
+                    dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
+                    distances_precomputed[key][idx_emb] = dist
 
-                    if type == 'range':
-                        if max_dist >= dist:
-                            predicted[idx][y_idx] += 1.0
+                if type == 'range':
+                    if max_dist > dist:
+                        predicted[idx_emb][y_idx] += 1.0
 
-                    if closest_dist > dist:
-                        closest_dist = dist
-                        closest_idx = y_idx
+                if closest_dist > dist:
+                    closest_dist = dist
+                    closest_idx = y_idx
 
-                if type == 'closest':
-                    predicted[idx][closest_idx] = 1.0
+            if type == 'closest':
+                predicted[idx_emb][closest_idx] = 1.0
 
-                target[idx][y_idx_real] = 1.0
-                target_y.append(y_idx_real)
-            except Exception as e:
-                logging.error(str(e))
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+            target[idx_emb][y_idx_real] = 1.0
+            target_y.append(y_idx_real)
 
         if type == 'range':
-            predicted = predicted / (np.sum(predicted, axis=1, keepdims=True) + 1e-20)
+            predicted = predicted /(np.sum(predicted, axis=1, keepdims=True) + 1e-18)
 
         return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids, distances_precomputed
 
