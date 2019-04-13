@@ -63,12 +63,14 @@ parser.add_argument('-name', help='Run name, by default date', default='', type=
 parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_10_cold', type=str)
+parser.add_argument('-model', default='model_11_steam_room', type=str)
+parser.add_argument('-model_encoder', default='densenet121', type=str)
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
 
 parser.add_argument('-datasource', default='datasource_pytorch', type=str)
+parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
 # https://omoindrot.github.io/triplet-loss

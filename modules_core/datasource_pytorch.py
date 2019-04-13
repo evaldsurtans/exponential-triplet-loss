@@ -62,6 +62,13 @@ class Dataset(torch.utils.data.dataset.Dataset):
         with open(f'{self.args.path_data}/{self.args.datasource_type}/lock', 'r+') as fp_download_lock:
             FileUtils.lock_file(fp_download_lock)
 
+            transform_colors = torchvision.transforms.ToTensor()
+            if self.args.datasource_is_grayscale:
+                transform_colors = torchvision.transforms.Compose([
+                        torchvision.transforms.Grayscale(),
+                        torchvision.transforms.ToTensor()
+                    ])
+
             if self.args.datasource_type == 'fassion_minst':
                 self.dataset = torchvision.datasets.FashionMNIST(
                     path_data,
@@ -77,24 +84,19 @@ class Dataset(torch.utils.data.dataset.Dataset):
                     transform=torchvision.transforms.ToTensor()
                 )
             elif self.args.datasource_type == 'cifar_10':
+
                 self.dataset = torchvision.datasets.CIFAR10(
                     path_data,
                     download=True,
                     train=not is_test_data,
-                    transform=torchvision.transforms.Compose([
-                        torchvision.transforms.Grayscale(),
-                        torchvision.transforms.ToTensor()
-                    ])
+                    transform=transform_colors
                 )
             elif self.args.datasource_type == 'cifar_100':
                 self.dataset = torchvision.datasets.CIFAR100(
                     path_data,
                     download=True,
                     train=not is_test_data,
-                    transform=torchvision.transforms.Compose([
-                        torchvision.transforms.Grayscale(),
-                        torchvision.transforms.ToTensor()
-                    ])
+                    transform=transform_colors
                 )
             elif self.args.datasource_type == 'eminst': # extended minst https://arxiv.org/pdf/1702.05373.pdf
                 self.dataset = torchvision.datasets.EMNIST(
@@ -118,6 +120,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             groups[int(label_idx)]['samples'].append(img)
 
         args.input_size = img.size(1) # channels, w, h
+        args.input_features = img.size(0)
 
         if not is_test_data:
             ids = [int(it) for it in self.args.datasource_exclude_train_class_ids]
