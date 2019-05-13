@@ -344,9 +344,15 @@ elif args.optimizer == 'rmsprop':
 
 
 def calc_err(meter):
-    fpr, tpr, thresholds = roc_curve(meter.targets, meter.scores)
-    eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-    thresh = interp1d(fpr, thresholds)(eer)
+    fpr, tpr, eer = -1, -1, -1
+    try:
+        fpr, tpr, thresholds = roc_curve(meter.targets, meter.scores)
+        eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
+        thresh = interp1d(fpr, thresholds)(eer)
+    except Exception as e:
+        logging.error(str(e))
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
     return fpr, tpr, eer
 
 
@@ -376,13 +382,13 @@ def forward(batch, output_by_y, is_train):
     max_distance = 2.0 # cosine distance
 
     if args.is_triplet_loss_margin_auto:
-        margin_distance = args.overlap_coef * max_distance / len(data_loader_train.dataset.classes)
+        margin_distance = args.overlap_coef * max_distance / args.datasource_classes_train
         if args.triplet_similarity == 'cos':
             margin_distance *= 2.0
     else:
         margin_distance = args.triplet_loss_margin
 
-    K = len(data_loader_train.dataset.classes)
+    K = args.datasource_classes_train
     C_norm = args.overlap_coef/K
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
