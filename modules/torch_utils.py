@@ -6,7 +6,9 @@ import numpy as np
 import logging
 
 def to_numpy(tensor_data):
-    return tensor_data.detach().to('cpu').data.numpy()
+    if isinstance(tensor_data, torch.Tensor):
+        return tensor_data.detach().to('cpu').data.numpy()
+    return tensor_data
 
 def init_parameters(model):
     total_param_size = 0

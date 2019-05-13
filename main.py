@@ -66,7 +66,7 @@ parser.add_argument('-device', default='cuda', type=str)
 parser.add_argument('-model', default='model_12_dobe', type=str)
 parser.add_argument('-model_encoder', default='resnet18', type=str)
 parser.add_argument('-is_model_encoder_pretrained', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-layers_embedding_type', default='pooled', type=str) #refined, pooled
+parser.add_argument('-layers_embedding_type', default='last', type=str) #refined, pooled, last
 
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -99,7 +99,7 @@ parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
 parser.add_argument('-triplet_positives', default=3, type=int) # ensures batch will have 2 or 3 positives (for speaker_triplet_sampler_hard must have 3)
-parser.add_argument('-triplet_loss', default='exp10', type=str)
+parser.add_argument('-triplet_loss', default='exp13', type=str)
 parser.add_argument('-coef_loss_neg', default=1.0, type=float)
 parser.add_argument('-triplet_loss_margin', default=0.2, type=float)
 parser.add_argument('-is_triplet_loss_margin_auto', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -117,9 +117,14 @@ parser.add_argument('-slope_coef', default=3.0, type=float)
 parser.add_argument('-neg_coef', default=2.0, type=float)
 parser.add_argument('-pos_coef', default=3.0, type=float)
 
-parser.add_argument('-pos_samples_min_count', default=100, type=int)
+parser.add_argument('-neg_loss_coef', default=0.0, type=float)
+parser.add_argument('-pos_loss_coef', default=0.0, type=float)
+
 parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-center_loss_min_count', default=100, type=int)
+parser.add_argument('-center_loss_coef', default=0.0, type=float)
+
+parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower() == 'true')) #TODO
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
@@ -150,13 +155,13 @@ parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
-parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str)
+parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str) #kaf maxout relu lin
 parser.add_argument('-suffix_affine_layers_hidden_params', default=8, type=int)
 
 parser.add_argument('-early_stopping_patience', default=5, type=int)
-parser.add_argument('-early_stopping_param', default='train_acc_closest', type=str)
-parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
-parser.add_argument('-early_stopping_delta_percent', default=0.001, type=float)
+parser.add_argument('-early_stopping_param', default='test_loss', type=str)
+parser.add_argument('-early_stopping_param_coef', default=-1.0, type=float)
+parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -208,6 +213,12 @@ tmp = [
     'train_loss',
     'train_loss_emb',
     'train_loss_class',
+    'train_loss_pos',
+    'train_loss_neg',
+    'test_loss_pos',
+    'test_loss_neg',
+    'train_loss_center',
+    'test_loss_center',
     'avg_epoch_time']
 if not args.params_report is None:
     for it in args.params_report:
@@ -252,7 +263,13 @@ tmp = [
     'test_loss',
     'train_loss',
     'train_loss_emb',
+    'train_loss_pos',
+    'train_loss_neg',
+    'test_loss_pos',
+    'test_loss_neg',
     'train_loss_class',
+    'train_loss_center',
+    'test_loss_center',
     'epoch_time',
     'early_percent_improvement']
 if not args.params_report_local is None:
@@ -383,7 +400,28 @@ def forward(batch, output_by_y, is_train):
     pos_norm = sampled['positives_dist'] / max_distance
     neg_norm = sampled['negatives_dist'] / max_distance
 
-    if args.triplet_loss == 'exp12':
+    loss_pos = 0
+    loss_neg = 0
+
+    if args.triplet_loss == 'exp13':
+        eps = 1e-20
+        loss_pos_inner = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
+        loss_neg_inner = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
+
+        pos_loss_coef = args.pos_loss_coef
+        neg_loss_coef = args.neg_loss_coef
+
+        if pos_loss_coef == 0 and neg_loss_coef == 0:
+            # automatic balancing of coefs
+            if loss_pos_inner > 0:
+                # adaptive coeficient
+                pos_loss_coef = loss_neg_inner.detach() / loss_pos_inner.detach()
+                neg_loss_coef = 1.0
+
+        loss_pos = -torch.log(1.0 - (loss_pos_inner/(1.-C_norm)) + eps) * pos_loss_coef
+        loss_neg = -torch.log(1.0 - (loss_neg_inner/0.5) + eps) * neg_loss_coef
+        loss = loss_pos + loss_neg
+    elif args.triplet_loss == 'exp12':
         eps = 1e-20
         loss_pos = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
         loss_neg = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
@@ -584,22 +622,28 @@ def forward(batch, output_by_y, is_train):
         e = 1e-20
         loss = -torch.log10(-pos/b + 1.0 +e) - torch.log10(-(1.0-neg)/b + 1 + e)
 
-    if args.is_center_loss or args.is_kl_loss:
+    loss_emb = loss
+    loss_center = None
+    if args.is_center_loss:
         centers = []
         outputs_by_centers = []
         cached_centers_by_y = {}
         list_y = to_numpy(y).tolist()
+
+        # output_by_y => all centers from current epoch
         for idx, each_y in enumerate(list_y):
             if each_y in output_by_y.keys():
                 if each_y not in cached_centers_by_y.keys():
-                    cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
-                    if args.embedding_norm == 'l2': #TODO unit_range
-                        cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
-                    cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
-                centers.append(cached_centers_by_y[each_y])
-                outputs_by_centers.append(output[idx])
+                    if len(output_by_y[each_y]['embeddings']) > args.center_loss_min_count:
+                        cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
+                        if args.embedding_norm == 'l2': #TODO unit_range
+                            cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
+                        cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
+                if each_y in cached_centers_by_y.keys():
+                    centers.append(cached_centers_by_y[each_y])
+                    outputs_by_centers.append(output[idx])
 
-        if len(centers) > args.pos_samples_min_count:
+        if len(centers) > 0:
             centers = torch.stack(centers).to(args.device)
             outputs_by_centers = torch.stack(outputs_by_centers).to(args.device)
             if args.triplet_similarity == 'cos':
@@ -608,54 +652,23 @@ def forward(batch, output_by_y, is_train):
                 centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
 
             if args.is_center_loss:
-                loss_center = torch.mean(torch.tan(args.tan_coef * torch.clamp(centers_dist - C_norm, 0.0)))
-                loss += loss_center
+                if args.triplet_loss == 'exp13':
+                    eps = 1e-20
+                    loss_center_inner = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
+                    loss_center = -torch.log(1.0 - (loss_center_inner/(1.-C_norm)) + eps)
+                else:
+                    loss_center = torch.clamp(centers_dist - C_norm, 0.0)
 
-            if args.is_kl_loss:
-                embs_by_y = {}
-                for idx, each_y in enumerate(list_y):
-                    if each_y in output_by_y.keys():
-                        if each_y not in embs_by_y.keys():
-                            embs_by_y[each_y] = []
-                        embs_by_y[each_y].append(output[idx])
-
-                sigmas = []
-                mus = []
-                for each_y in embs_by_y.keys():
-                    perm_idxes = np.random.permutation(len(output_by_y[each_y]['embeddings']))
-                    perm_idxes = perm_idxes[:args.pos_samples_min_count]
-                    centers = []
-                    embs = embs_by_y[each_y]
-                    for _ in range(len(perm_idxes) + len(embs)):
-                        centers.append(cached_centers_by_y[each_y])
-                    t_centers = torch.stack(centers).to(args.device)
-
-                    for idx in perm_idxes:
-                        embs.append( torch.FloatTensor(output_by_y[each_y]['embeddings'][idx]).to(args.device) )
-                    t_embs = torch.stack(embs)
-
-                    if args.triplet_similarity == 'cos':
-                        t_centers_dist = 1. - F.cosine_similarity(t_centers, t_embs, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
-                    else:
-                        t_centers_dist = F.pairwise_distance(t_centers, t_embs, eps=1e-20) # 0 .. 2
-
-                    mu_output = torch.mean(t_centers_dist)
-                    sigma_output = torch.std(t_centers_dist)
-                    sigmas.append(sigma_output)
-                    mus.append(mu_output)
-
-                sigma = torch.mean(torch.stack(sigmas).to(args.device))
-                mu = torch.mean(torch.stack(mus).to(args.device))
-
-                sigma_target = C_norm * 0.5 / 3.0 # C_norm => radius => sigma approx.
-                mu_target = C_norm * 0.5 # only positive range of distances
-
-                if sigma > 0:
-                    kl_div = args.kl_coef * torch.log(sigma_target/sigma) + (sigma**2 + (mu - mu_target)**2)/(2*sigma_target**2) - 0.5
-                    loss += kl_div
+                center_loss_coef = args.center_loss_coef
+                if center_loss_coef <= 0.0:
+                    center_loss_coef = 0.0
+                    if loss_center > 0:
+                        # adaptive coeficient
+                        center_loss_coef = loss_emb.detach() / loss_center.detach()
+                loss_center = loss_center * center_loss_coef
+                loss = loss_center + loss_emb
 
     loss_class = None
-    loss_emb = loss
     if is_train:
         if output_class is not None:
             y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
@@ -670,18 +683,29 @@ def forward(batch, output_by_y, is_train):
                 if loss_class > 0:
                     # adaptive coeficient
                     class_loss_coef = loss_emb.detach() / loss_class.detach()
-            loss = loss_class * class_loss_coef + loss_emb
+            loss_class = loss_class * class_loss_coef
+            loss = loss_class + loss_emb
 
     result = dict(
         output=output,
         output_class=output_class,
         y=y,
-        loss_class=loss_class,
-        loss_emb=loss_emb,
+        loss_center=prep_loss_for_stats(loss_center),
+        loss_pos=prep_loss_for_stats(loss_pos),
+        loss_neg=prep_loss_for_stats(loss_neg),
+        loss_class=prep_loss_for_stats(loss_class),
+        loss_emb=prep_loss_for_stats(loss_emb),
         loss=loss,
         x=x
     )
     return {**result, **sampled}
+
+
+def prep_loss_for_stats(loss_val):
+    if loss_val is not None:
+        if isinstance(loss_val, torch.Tensor):
+            loss_val = loss_val.item()
+    return loss_val
 
 state = {
     'epoch': 0,
@@ -696,6 +720,12 @@ state = {
     'test_loss_class': -1,
     'train_loss_emb': -1,
     'test_loss_emb': -1,
+    'train_loss_center': -1,
+    'test_loss_center': -1,
+    'train_loss_pos': -1,
+    'test_loss_pos': -1,
+    'train_loss_neg': -1,
+    'test_loss_neg': -1,
     'test_acc_range': -1,
     'best_acc_range': -1,
     'train_acc_range': -1,
@@ -746,6 +776,15 @@ meters = dict(
 
     train_loss_emb = tnt.meter.AverageValueMeter(),
     test_loss_emb = tnt.meter.AverageValueMeter(),
+
+    train_loss_center = tnt.meter.AverageValueMeter(),
+    test_loss_center = tnt.meter.AverageValueMeter(),
+
+    train_loss_pos = tnt.meter.AverageValueMeter(),
+    test_loss_pos = tnt.meter.AverageValueMeter(),
+
+    train_loss_neg = tnt.meter.AverageValueMeter(),
+    test_loss_neg = tnt.meter.AverageValueMeter(),
 
     train_loss_class = tnt.meter.AverageValueMeter(),
     test_loss_class = tnt.meter.AverageValueMeter(),
@@ -829,6 +868,12 @@ for epoch in range(1, args.epochs_count + 1):
                 meters[f'{meter_prefix}_loss_class'].add(np.median(to_numpy(result['loss_class'])))
             if result['loss_emb'] is not None:
                 meters[f'{meter_prefix}_loss_emb'].add(np.median(to_numpy(result['loss_emb'])))
+            if result['loss_pos'] is not None:
+                meters[f'{meter_prefix}_loss_pos'].add(np.median(to_numpy(result['loss_pos'])))
+            if result['loss_neg'] is not None:
+                meters[f'{meter_prefix}_loss_neg'].add(np.median(to_numpy(result['loss_neg'])))
+            if result['loss_center'] is not None:
+                meters[f'{meter_prefix}_loss_center'].add(np.median(to_numpy(result['loss_center'])))
 
             if args.is_quick_test:
                 print(f"count pos:{float(result['positives_dist'].size(0))} neg:{float(result['negatives_dist'].size(0))}")
@@ -887,7 +932,7 @@ for epoch in range(1, args.epochs_count + 1):
                     output_by_y[y_each]['images'].append(images[idx])
 
             idx_quick_test += 1
-            if args.is_quick_test and idx_quick_test >= 3:
+            if args.is_quick_test and idx_quick_test >= 5:
                 break
 
         try:
@@ -1021,12 +1066,23 @@ for epoch in range(1, args.epochs_count + 1):
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc_closest'])
         state[f'{meter_prefix}_eer2'] = eer
 
-        try:
+        if meters[f'{meter_prefix}_loss'].n > 0:
             state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]
+
+        if meters[f'{meter_prefix}_loss_emb'].n > 0:
             state[f'{meter_prefix}_loss_emb'] = meters[f'{meter_prefix}_loss_emb'].value()[0]
+
+        if meters[f'{meter_prefix}_loss_center'].n > 0:
+            state[f'{meter_prefix}_loss_center'] = meters[f'{meter_prefix}_loss_center'].value()[0]
+
+        if meters[f'{meter_prefix}_loss_class'].n > 0:
             state[f'{meter_prefix}_loss_class'] = meters[f'{meter_prefix}_loss_class'].value()[0]
-        except:
-            pass
+
+        if meters[f'{meter_prefix}_loss_neg'].n > 0:
+            state[f'{meter_prefix}_loss_neg'] = meters[f'{meter_prefix}_loss_neg'].value()[0]
+
+        if meters[f'{meter_prefix}_loss_pos'].n > 0:
+            state[f'{meter_prefix}_loss_pos'] = meters[f'{meter_prefix}_loss_pos'].value()[0]
 
         if meter_prefix == 'test':
             if state[f'best_acc_closest'] < state[f'{meter_prefix}_acc_closest']:
@@ -1052,6 +1108,9 @@ for epoch in range(1, args.epochs_count + 1):
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss', scalar_value=state[f'{meter_prefix}_loss'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_emb', scalar_value=state[f'{meter_prefix}_loss_emb'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_center', scalar_value=state[f'{meter_prefix}_loss_center'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_neg', scalar_value=state[f'{meter_prefix}_loss_neg'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_pos', scalar_value=state[f'{meter_prefix}_loss_pos'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_class', scalar_value=state[f'{meter_prefix}_loss_class'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_delta', scalar_value=state[f'{meter_prefix}_dist_delta'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_positives', scalar_value=state[f'{meter_prefix}_dist_positives'], global_step=epoch)
@@ -1120,7 +1179,7 @@ for epoch in range(1, args.epochs_count + 1):
     percent_improvement = 0
     if epoch > 1:
         if state_before[args.early_stopping_param] != 0:
-            percent_improvement = args.early_stopping_param_coef * (state_before[args.early_stopping_param] - state[args.early_stopping_param]) / state_before[args.early_stopping_param]
+            percent_improvement = args.early_stopping_param_coef * (state[args.early_stopping_param] - state_before[args.early_stopping_param]) / state_before[args.early_stopping_param]
             if math.isnan(percent_improvement):
                 percent_improvement = 0
 

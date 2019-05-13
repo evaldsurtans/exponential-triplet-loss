@@ -7,17 +7,20 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_13_model_12_dobe_cifar_10 \
+-report may_13_b_model_12_dobe_exp13_cifar_10 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 400 \
 -datasource_type cifar_10 \
 -optimizer adam \
--params_grid learning_rate suffix_affine_layers_hidden_func class_loss_coef \
--learning_rate 1e-4 3e-4 1e-3 \
--class_loss_coef 0 1e-1 1e-2 1 \
+-params_grid learning_rate suffix_affine_layers_hidden_func class_loss_coef is_center_loss pos_loss_coef neg_loss_coef \
+-learning_rate 1e-4 3e-4 \
+-class_loss_coef 0 1 0.5 1.5 \
+-pos_loss_coef 0.0 1.0 \
+-neg_loss_coef 0.0 1.0 \
+-is_center_loss True False \
 -overlap_coef 1.2 \
--layers_embedding_type refined \
+-layers_embedding_type last \
 -suffix_affine_layers_hidden_func maxout kaf relu \
 -is_model_encoder_pretrained True \
 -model_encoder densenet121 \
@@ -28,7 +31,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
--triplet_loss exp12 \
+-triplet_loss exp13 \
 -embedding_layers 0 \
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 1024 \
@@ -43,7 +46,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
 -triplet_sampler_var hard \
--is_center_loss False \
 -is_kl_loss False \
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \

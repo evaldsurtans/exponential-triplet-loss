@@ -33,7 +33,7 @@ from modules.block_resnet_2d_leaky import ResBlock2D, ConvBlock2D
 from modules.block_reshape2 import Reshape
 from modules.dict_to_obj import DictToObj
 import modules.torch_utils as torch_utils
-from modules.layer_kaf import KAF
+from modules.layer_kaf import KAF, KAF2D
 from modules.layer_maxout import MaxoutLinear
 
 # Variant without affline, fully convolutional net
@@ -76,20 +76,35 @@ class Model(torch.nn.Module):
             )
         else:
             func = torch.nn.ReLU()
-            if self.args.suffix_affine_layers_hidden_func == 'kaf':
-                func = KAF(num_parameters=self.args.suffix_affine_layers_hidden_params)
-            elif self.args.suffix_affine_layers_hidden_func == 'maxout':
-                func = MaxoutLinear(1, 1, pool_size=self.args.suffix_affine_layers_hidden_params)
 
-            # refined part pooling version
-            # https://arxiv.org/pdf/1711.09349.pdf
-            self.layers_embedding = torch.nn.Sequential(
-                torch.nn.BatchNorm2d(num_features=self.channels_conv_size),
-                torch.nn.AdaptiveAvgPool2d(output_size=1),
-                func,
-                torch.nn.Conv2d(kernel_size=1, stride=1, in_channels=self.channels_conv_size, out_channels=self.args.embedding_size, bias=False),
-                Reshape(shape=self.args.embedding_size)
-            )
+            if args.layers_embedding_type == 'refined':
+
+                if self.args.suffix_affine_layers_hidden_func == 'kaf':
+                    func = KAF(num_parameters=self.channels_conv_size, D=self.args.suffix_affine_layers_hidden_params)
+                elif self.args.suffix_affine_layers_hidden_func == 'maxout':
+                    func = MaxoutLinear(1, 1, pool_size=self.args.suffix_affine_layers_hidden_params)
+
+                # refined part pooling version
+                # https://arxiv.org/pdf/1711.09349.pdf
+                self.layers_embedding = torch.nn.Sequential(
+                    torch.nn.BatchNorm2d(num_features=self.channels_conv_size),
+                    func,
+                    torch.nn.Conv2d(kernel_size=1, stride=1, in_channels=self.channels_conv_size, out_channels=self.args.embedding_size, bias=False),
+                    Reshape(shape=self.args.embedding_size)
+                )
+            else: # last
+                self.layers_embedding = torch.nn.Sequential(
+                    Reshape(shape=self.channels_conv_size),
+                    torch.nn.BatchNorm1d(num_features=self.channels_conv_size)
+                )
+
+                if self.args.suffix_affine_layers_hidden_func == 'kaf':
+                    self.layers_embedding.add_module('emb_last_lin', torch.nn.Linear(in_features=self.channels_conv_size, out_features=self.args.embedding_size))
+                    self.layers_embedding.add_module('emb_last', KAF(num_parameters=self.args.embedding_size, D=self.args.suffix_affine_layers_hidden_params))
+                elif self.args.suffix_affine_layers_hidden_func == 'maxout':
+                    self.layers_embedding.add_module('emb_last', MaxoutLinear(d_in=self.channels_conv_size, d_out=self.args.embedding_size, pool_size=self.args.suffix_affine_layers_hidden_params))
+                else:
+                    self.layers_embedding.add_module('emb_last_lin', torch.nn.Linear(in_features=self.channels_conv_size, out_features=self.args.embedding_size))
 
         if self.args.embedding_function == 'sigmoid':
             self.layers_embedding.add_module('emb_sigmoid', torch.nn.Sigmoid())

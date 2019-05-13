@@ -78,7 +78,7 @@ class Model(torch.nn.Module):
         else:
             func = torch.nn.ReLU()
             if self.args.suffix_affine_layers_hidden_func == 'kaf':
-                func = KAF(num_parameters=self.args.suffix_affine_layers_hidden_params)
+                func = KAF(num_parameters=self.channels_conv_size, D=self.args.suffix_affine_layers_hidden_params)
             elif self.args.suffix_affine_layers_hidden_func == 'maxout':
                 func = MaxoutLinear(1, 1, pool_size=self.args.suffix_affine_layers_hidden_params)
 
