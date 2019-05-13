@@ -7,16 +7,16 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_13_model_12_dobe_cifar_10 \
+-report may_13_model_12_dobe_cifar_100 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 400 \
--datasource_type cifar_10 \
+-datasource_type cifar_100 \
 -optimizer adam \
 -params_grid learning_rate suffix_affine_layers_hidden_func class_loss_coef \
--learning_rate 1e-4 3e-4 1e-3 \
+-learning_rate 1e-6 3e-7 \
 -class_loss_coef 0 1e-1 1e-2 1 \
--overlap_coef 1.2 \
+-overlap_coef 30 \
 -layers_embedding_type refined \
 -suffix_affine_layers_hidden_func maxout kaf relu \
 -is_model_encoder_pretrained True \

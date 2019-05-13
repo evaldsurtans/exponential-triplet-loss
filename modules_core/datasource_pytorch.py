@@ -113,7 +113,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
 
             FileUtils.unlock_file(fp_download_lock)
 
-        self.classes = np.arange(self.dataset.targets.max() + 1).tolist()
+        self.classes = np.arange(np.array(self.dataset.targets).max() + 1).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for img, label_idx in self.dataset:
@@ -151,6 +151,9 @@ class Dataset(torch.utils.data.dataset.Dataset):
             self.size_samples = self.args.datasource_size_samples
 
         logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
+
+        if not is_test_data:
+            self.args.datasource_classes_train = len(groups) # override class count
 
         if self.args.batch_size % self.args.triplet_positives != 0 or self.args.batch_size <= self.args.triplet_positives:
             logging.error(f'batch does not accommodate triplet_positives {self.args.batch_size} {self.args.triplet_positives}')

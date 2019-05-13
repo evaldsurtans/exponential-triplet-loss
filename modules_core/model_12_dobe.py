@@ -68,7 +68,6 @@ class Model(torch.nn.Module):
                 if idx < args.embedding_layers - 1:
                     self.layers_embedding.add_module(f'relu_linear_{idx}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
                 input_size_emb = output_size_emb
-
         elif args.layers_embedding_type == 'pooled':
             self.layers_embedding = torch.nn.Sequential(
                 Reshape(shape=(1, self.channels_conv_size)),
@@ -117,6 +116,14 @@ class Model(torch.nn.Module):
 
         if self.args.embedding_layers_last_norm != 'none':
             self.layers_embedding.add_module('emb_last_reshape_final', Reshape(shape=self.args.embedding_size))
+
+        if self.args.datasource_classes_train:
+            logging.info(f'classification layer classes count: {self.args.datasource_classes_train}')
+            self.layers_classification = torch.nn.Sequential(
+                torch.nn.BatchNorm1d(num_features=self.args.embedding_size),
+                torch.nn.Linear(in_features=self.args.embedding_size, out_features=self.args.datasource_classes_train),
+                torch.nn.Softmax(dim=1)
+            )
 
         torch_utils.init_parameters(self.layers_embedding)
 
@@ -199,10 +206,12 @@ class Model(torch.nn.Module):
         #     inp = out
 
         output_enc = self.layers_encoder.forward(x)
-
         output_emb = self.layers_embedding.forward(output_enc)
-
         output_norm = torch_utils.normalize_output(output_emb, self.args.embedding_norm)
 
         return output_norm
 
+    def forward_with_classification(self, x):
+        output_norm = self.forward(x)
+        output_class = self.layers_classification.forward(output_norm)
+        return output_norm, output_class

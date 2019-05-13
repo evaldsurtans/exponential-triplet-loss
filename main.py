@@ -60,27 +60,33 @@ parser.add_argument('-params_report', nargs='*', required=False) # extra params 
 parser.add_argument('-params_report_local', nargs='*', required=False) # extra params for local run report
 parser.add_argument('-name', help='Run name, by default date', default='', type=str)
 
-parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_datasource_only', default=False, type=lambda x: (str(x).lower() == 'true')) # just test datasource
 parser.add_argument('-device', default='cuda', type=str)
 
-parser.add_argument('-model', default='model_11_steam_room', type=str)
-parser.add_argument('-model_encoder', default='densenet121', type=str)
+parser.add_argument('-model', default='model_12_dobe', type=str)
+parser.add_argument('-model_encoder', default='resnet18', type=str)
+parser.add_argument('-is_model_encoder_pretrained', default=True, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-layers_embedding_type', default='pooled', type=str) #refined, pooled
+
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
 
 parser.add_argument('-datasource', default='datasource_pytorch', type=str)
 parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-datasource_classes_train', default=0, type=int)
+
+parser.add_argument('-class_loss_coef', default=1e-1, type=float) # 0 means adapative coeficient
+
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
-# https://omoindrot.github.io/triplet-loss
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
 parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
 parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 none
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='eminst', type=str) # fassion_minst minst
+parser.add_argument('-datasource_type', default='cifar_10', type=str) # fassion_minst minst
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
@@ -144,10 +150,13 @@ parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
-parser.add_argument('-early_stopping_patience', default=3, type=int)
+parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str)
+parser.add_argument('-suffix_affine_layers_hidden_params', default=8, type=int)
+
+parser.add_argument('-early_stopping_patience', default=5, type=int)
 parser.add_argument('-early_stopping_param', default='train_acc_closest', type=str)
 parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
-parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
+parser.add_argument('-early_stopping_delta_percent', default=0.001, type=float)
 
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -197,6 +206,8 @@ tmp = [
     'train_max_dist',
     'test_loss',
     'train_loss',
+    'train_loss_emb',
+    'train_loss_class',
     'avg_epoch_time']
 if not args.params_report is None:
     for it in args.params_report:
@@ -240,6 +251,8 @@ tmp = [
     'train_max_dist',
     'test_loss',
     'train_loss',
+    'train_loss_emb',
+    'train_loss_class',
     'epoch_time',
     'early_percent_improvement']
 if not args.params_report_local is None:
@@ -320,7 +333,7 @@ def calc_err(meter):
     return fpr, tpr, eer
 
 
-def forward(batch, output_by_y):
+def forward(batch, output_by_y, is_train):
     global is_logged_cnorm
 
     y = batch[0].to(args.device)
@@ -330,11 +343,18 @@ def forward(batch, output_by_y):
     if is_data_parallel:
         model_module = model.module
 
-    if hasattr(model_module, 'init_hidden'):
-        hidden = model_module.init_hidden(batch_size=x.size(0)) #! Important // cannot be used with data parallel
-        output = model.forward(x, hidden)
-    else:
-        output = model.forward(x)
+    output = None
+    output_class = None
+    if is_train:
+        if hasattr(model_module, 'forward_with_classification'):
+            output, output_class = model.forward_with_classification(x)
+
+    if output is None:
+        if hasattr(model_module, 'init_hidden'):
+            hidden = model_module.init_hidden(batch_size=x.size(0)) #! Important // cannot be used with data parallel
+            output = model.forward(x, hidden)
+        else:
+            output = model.forward(x)
 
     max_distance = 2.0 # cosine distance
 
@@ -634,11 +654,30 @@ def forward(batch, output_by_y):
                     kl_div = args.kl_coef * torch.log(sigma_target/sigma) + (sigma**2 + (mu - mu_target)**2)/(2*sigma_target**2) - 0.5
                     loss += kl_div
 
+    loss_class = None
+    loss_emb = loss
+    if is_train:
+        if output_class is not None:
+            y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
+            tmp = torch.arange(args.datasource_classes_train).reshape(1, args.datasource_classes_train)
+            y_hot_enc = (y_hot_enc == tmp).float() # one hot encoded
+            y_hot_enc = y_hot_enc.detach().to(args.device)
 
+            loss_class = torch.mean(-y_hot_enc*torch.log(output_class))
+            class_loss_coef = args.class_loss_coef
+            if class_loss_coef <= 0.0:
+                class_loss_coef = 0.0
+                if loss_class > 0:
+                    # adaptive coeficient
+                    class_loss_coef = loss_emb.detach() / loss_class.detach()
+            loss = loss_class * class_loss_coef + loss_emb
 
     result = dict(
         output=output,
+        output_class=output_class,
         y=y,
+        loss_class=loss_class,
+        loss_emb=loss_emb,
         loss=loss,
         x=x
     )
@@ -653,6 +692,10 @@ state = {
     'early_percent_improvement': 0,
     'train_loss': -1,
     'test_loss': -1,
+    'train_loss_class': -1,
+    'test_loss_class': -1,
+    'train_loss_emb': -1,
+    'test_loss_emb': -1,
     'test_acc_range': -1,
     'best_acc_range': -1,
     'train_acc_range': -1,
@@ -700,6 +743,12 @@ CsvUtils.create_local(args)
 meters = dict(
     train_loss = tnt.meter.AverageValueMeter(),
     test_loss = tnt.meter.AverageValueMeter(),
+
+    train_loss_emb = tnt.meter.AverageValueMeter(),
+    test_loss_emb = tnt.meter.AverageValueMeter(),
+
+    train_loss_class = tnt.meter.AverageValueMeter(),
+    test_loss_class = tnt.meter.AverageValueMeter(),
 
     test_acc_range = tnt.meter.ClassErrorMeter(accuracy=True),
     train_acc_range = tnt.meter.ClassErrorMeter(accuracy=True),
@@ -764,10 +813,11 @@ for epoch in range(1, args.epochs_count + 1):
 
         for batch in data_loader:
             optimizer_func.zero_grad()
+            is_train = (data_loader == data_loader_train)
 
-            result = forward(batch, output_by_y)
+            result = forward(batch, output_by_y, is_train)
 
-            if data_loader == data_loader_train:
+            if is_train:
                 if result['loss'] is not None:
                     if result['loss'].grad_fn is not None: # in case all samples in batch does not require training
                         result['loss'].backward()
@@ -775,6 +825,10 @@ for epoch in range(1, args.epochs_count + 1):
 
             if result['loss'] is not None:
                 meters[f'{meter_prefix}_loss'].add(np.median(to_numpy(result['loss'])))
+            if result['loss_class'] is not None:
+                meters[f'{meter_prefix}_loss_class'].add(np.median(to_numpy(result['loss_class'])))
+            if result['loss_emb'] is not None:
+                meters[f'{meter_prefix}_loss_emb'].add(np.median(to_numpy(result['loss_emb'])))
 
             if args.is_quick_test:
                 print(f"count pos:{float(result['positives_dist'].size(0))} neg:{float(result['negatives_dist'].size(0))}")
@@ -967,7 +1021,12 @@ for epoch in range(1, args.epochs_count + 1):
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc_closest'])
         state[f'{meter_prefix}_eer2'] = eer
 
-        state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]
+        try:
+            state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]
+            state[f'{meter_prefix}_loss_emb'] = meters[f'{meter_prefix}_loss_emb'].value()[0]
+            state[f'{meter_prefix}_loss_class'] = meters[f'{meter_prefix}_loss_class'].value()[0]
+        except:
+            pass
 
         if meter_prefix == 'test':
             if state[f'best_acc_closest'] < state[f'{meter_prefix}_acc_closest']:
@@ -992,6 +1051,8 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_dist_delta_hard'] = meters[f'{meter_prefix}_dist_negatives_hard'].value()[0] - meters[f'{meter_prefix}_dist_positives_hard'].value()[0]
 
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss', scalar_value=state[f'{meter_prefix}_loss'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_emb', scalar_value=state[f'{meter_prefix}_loss_emb'], global_step=epoch)
+        tensorboard_writer.add_scalar(tag=f'{meter_prefix}_loss_class', scalar_value=state[f'{meter_prefix}_loss_class'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_delta', scalar_value=state[f'{meter_prefix}_dist_delta'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_positives', scalar_value=state[f'{meter_prefix}_dist_positives'], global_step=epoch)
         tensorboard_writer.add_scalar(tag=f'{meter_prefix}_dist_negatives', scalar_value=state[f'{meter_prefix}_dist_negatives'], global_step=epoch)
@@ -1059,7 +1120,7 @@ for epoch in range(1, args.epochs_count + 1):
     percent_improvement = 0
     if epoch > 1:
         if state_before[args.early_stopping_param] != 0:
-            percent_improvement = args.early_stopping_param_coef * (state[args.early_stopping_param] - state_before[args.early_stopping_param]) / state_before[args.early_stopping_param]
+            percent_improvement = args.early_stopping_param_coef * (state_before[args.early_stopping_param] - state[args.early_stopping_param]) / state_before[args.early_stopping_param]
             if math.isnan(percent_improvement):
                 percent_improvement = 0
 

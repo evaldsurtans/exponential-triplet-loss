@@ -11,6 +11,11 @@ maxs = []
 avgs = []
 deltas = []
 
+tmp = torch.rand((3, 4))
+tmp_s1 = F.softmax(tmp, dim=1)
+tmp_s0 = F.softmax(tmp, dim=0)
+
+
 def func1(output_emb):
     #output_emb = F.tanh(output_emb)
     norm = torch.norm(output_emb, p=2, dim=1, keepdim=True)

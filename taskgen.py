@@ -206,12 +206,15 @@ for arg in vars(args):
 
     if key in args_other_names:
         if not key in formated_params_grid:
-            if not value is None and len(value) > 0 and not value[0] is None:
-                formated_params_seq[key] = value
+            if isinstance(value, list):
+                if isinstance(value, list) and len(value) > 0 and not value[0] is None:
+                    formated_params_seq[key] = value
+                else:
+                    formated_params_seq[key] = value
 
-            if len(value) > 1:
-                logging_utils.info(f'Not in grid: {key}')
-                logging_utils.info(json.dumps(formated_params_seq[key], indent=4))
+                if len(value) > 1:
+                    logging_utils.info(f'Not in grid: {key}')
+                    logging_utils.info(json.dumps(formated_params_seq[key], indent=4))
 
 grid = []
 if len(list(formated_params_grid)) > 0:
