@@ -56,6 +56,7 @@ class ArgsUtils(object):
                             if it.lower() != 'false' and it.lower() != 'true':
                                 raise ValueError
                         args[arg_name] = [it.lower() == 'true' for it in arg_params]
+                        is_parsed = True
                     except ValueError:
                         pass
 

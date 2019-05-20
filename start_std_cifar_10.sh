@@ -7,22 +7,21 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_20_model_12_dobe_exp13_cifar_100 \
+-report may_16_std_cifar_10 \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 100 \
--datasource_type cifar_100 \
+-epochs_count 400 \
+-datasource_type cifar_10 \
 -optimizer adam \
--params_grid learning_rate embedding_size suffix_affine_layers_hidden_func center_loss_min_count overlap_coef \
--learning_rate 1e-3 3e-3 1e-4 \
--center_loss_min_count 100 300 \
--pos_loss_coef 1.0 \
--neg_loss_coef 1.0 \
--is_center_loss True \
--overlap_coef 30 20 40 \
+-params_grid triplet_sampler_var filter_samples triplet_loss_margin learning_rate class_loss_coef is_center_loss \
+-is_triplet_loss_margin_auto False \
+-triplet_loss_margin 0.2 0.1 0.3 \
+-learning_rate 1e-4 1e-5 \
+-class_loss_coef 0 1 0.5 1.5 \
+-is_center_loss True False \
+-overlap_coef 1.2 \
 -layers_embedding_type last \
--suffix_affine_layers_hidden_func maxout relu \
--suffix_affine_layers_hidden_params 16 8 4 \
+-suffix_affine_layers_hidden_func relu \
 -is_model_encoder_pretrained True \
 -model_encoder densenet121 \
 -embedding_layers_last_norm none \
@@ -32,12 +31,12 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
--triplet_loss exp13 \
+-triplet_loss standard \
 -embedding_layers 0 \
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
--embedding_size 256 32 \
+-embedding_size 256 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
@@ -46,17 +45,15 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
--triplet_sampler_var hard \
+-triplet_sampler_var hard all \
 -is_kl_loss False \
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm unit_range \
--triplet_similarity euclidean \
--filter_samples none \
--is_triplet_loss_margin_auto False \
--triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_5_zipper  \
+-embedding_norm none \
+-triplet_similarity cos \
+-filter_samples semi_hard hard \
+-triplet_sampler triplet_sampler_4  \
 -model model_12_dobe \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

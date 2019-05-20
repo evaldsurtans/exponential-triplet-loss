@@ -76,6 +76,7 @@ parser.add_argument('-datasource', default='datasource_pytorch', type=str)
 parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-datasource_classes_train', default=0, type=int)
 
+parser.add_argument('-is_class_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-class_loss_coef', default=1e-1, type=float) # 0 means adapative coeficient
 
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
@@ -120,7 +121,7 @@ parser.add_argument('-pos_coef', default=3.0, type=float)
 parser.add_argument('-neg_loss_coef', default=0.0, type=float)
 parser.add_argument('-pos_loss_coef', default=0.0, type=float)
 
-parser.add_argument('-is_center_loss', default=False, type=lambda x: (str(x).lower() == 'true'))
+parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-center_loss_min_count', default=100, type=int)
 parser.add_argument('-center_loss_coef', default=0.0, type=float)
 
@@ -158,7 +159,7 @@ parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add
 parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str) #kaf maxout relu lin
 parser.add_argument('-suffix_affine_layers_hidden_params', default=8, type=int)
 
-parser.add_argument('-early_stopping_patience', default=5, type=int)
+parser.add_argument('-early_stopping_patience', default=3, type=int)
 parser.add_argument('-early_stopping_param', default='test_loss', type=str)
 parser.add_argument('-early_stopping_param_coef', default=-1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
@@ -401,7 +402,7 @@ def forward(batch, output_by_y, is_train):
 
     if not is_logged_cnorm:
         is_logged_cnorm = True
-        logging.info(f'K: {K} C_norm: {C_norm} max_distance: {max_distance}')
+        logging.info(f'K/classes_train: {K} C_norm: {C_norm} max_distance: {max_distance}')
 
     pos_norm = sampled['positives_dist'] / max_distance
     neg_norm = sampled['negatives_dist'] / max_distance
@@ -672,10 +673,10 @@ def forward(batch, output_by_y, is_train):
                         # adaptive coeficient
                         center_loss_coef = loss_emb.detach() / loss_center.detach()
                 loss_center = loss_center * center_loss_coef
-                loss = loss_center + loss_emb
+                loss += loss_center
 
     loss_class = None
-    if is_train:
+    if is_train and args.is_class_loss:
         if output_class is not None:
             y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
             tmp = torch.arange(args.datasource_classes_train).reshape(1, args.datasource_classes_train)
@@ -690,7 +691,7 @@ def forward(batch, output_by_y, is_train):
                     # adaptive coeficient
                     class_loss_coef = loss_emb.detach() / loss_class.detach()
             loss_class = loss_class * class_loss_coef
-            loss = loss_class + loss_emb
+            loss += loss_class
 
     result = dict(
         output=output,
@@ -965,7 +966,11 @@ for epoch in range(1, args.epochs_count + 1):
         output_y_labels = []
         output_y = []
         output_y_images = []
+        count_labels = 0
         for key in output_by_y.keys():
+            count_labels += 1
+            # if count_labels > 50:
+            #     break # tensorboard limits 50 clases
             output_embeddings += output_by_y[key]['embeddings']
             output_y_images += output_by_y[key]['images']
             label = output_by_y[key]['label']
