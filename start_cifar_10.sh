@@ -5,23 +5,28 @@ export TMPDIR=$HOME/tmp
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
+
+# embedding_size
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_20_model_12_dobe_exp13_cifar_10 \
+-report may_21b_model_12_dobe_exp13_cifar_10 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 400 \
 -datasource_type cifar_10 \
--optimizer adam rmsprop \
--params_grid learning_rate embedding_size suffix_affine_layers_hidden_func suffix_affine_layers_hidden_params optimizer \
--learning_rate 1e-3 3e-3 1e-4 \
--pos_loss_coef 1.0 \
--neg_loss_coef 1.0 \
+-optimizer adam \
+-params_grid center_loss_coef class_loss_coef pos_loss_coef neg_loss_coef \
+-learning_rate 1e-4 \
 -is_center_loss True \
+-is_class_loss True \
+-pos_loss_coef 1.0 0.0 5.0 \
+-neg_loss_coef 1.0 0.0 5.0 \
+-center_loss_coef 1.0 0.0 5.0 \
+-class_loss_coef 1.0 0.0 5.0 \
 -overlap_coef 1.2 \
 -layers_embedding_type last \
--suffix_affine_layers_hidden_func kaf maxout \
--suffix_affine_layers_hidden_params 8 16 4 \
+-suffix_affine_layers_hidden_func maxout \
+-suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
 -model_encoder densenet121 \
 -embedding_layers_last_norm none \
@@ -36,7 +41,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
--embedding_size 256 32 16 \
+-embedding_size 16 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \

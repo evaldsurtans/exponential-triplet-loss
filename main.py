@@ -171,6 +171,9 @@ parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
 parser.add_argument('-max_embeddings_per_class_test', default=500, type=int)
 parser.add_argument('-max_embeddings_per_class_train', default=500, type=int)
 
+parser.add_argument('-max_embeddings_projector_classes', default=50, type=int)
+parser.add_argument('-max_embeddings_projector_samples', default=200, type=int)
+
 args, args_other = parser.parse_known_args()
 
 tmp = [
@@ -629,7 +632,7 @@ def forward(batch, output_by_y, is_train):
         e = 1e-20
         loss = -torch.log10(-pos/b + 1.0 +e) - torch.log10(-(1.0-neg)/b + 1 + e)
 
-    loss_emb = loss
+    loss_emb = loss.detach().clone()
     loss_center = None
     if args.is_center_loss:
         centers = []
@@ -966,11 +969,7 @@ for epoch in range(1, args.epochs_count + 1):
         output_y_labels = []
         output_y = []
         output_y_images = []
-        count_labels = 0
         for key in output_by_y.keys():
-            count_labels += 1
-            # if count_labels > 50:
-            #     break # tensorboard limits 50 clases
             output_embeddings += output_by_y[key]['embeddings']
             output_y_images += output_by_y[key]['images']
             label = output_by_y[key]['label']
@@ -1018,9 +1017,17 @@ for epoch in range(1, args.epochs_count + 1):
         output_y_labels = []
         output_y = []
         output_y_images = []
+        count_labels = 0
         for key in output_by_y.keys():
+            count_labels += 1
+            if count_labels > args.max_embeddings_projector_classes:
+                break # tensorboard limits 50 clases
             embeddings = output_by_y[key]['embeddings']
             images = output_by_y[key]['images']
+
+            if len(embeddings) > args.max_embeddings_projector_samples:
+                embeddings = embeddings[:args.max_embeddings_projector_samples]
+                images = images[:args.max_embeddings_projector_samples]
 
             output_embeddings += embeddings
             output_y_images += images
