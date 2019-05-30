@@ -145,9 +145,28 @@ parser.add_argument(
     default=12,
     type=int)
 
+parser.add_argument(
+    '-datasource_include_test_class_ids',
+    nargs='*',
+    default=[],
+    required=False)
+
+parser.add_argument(
+    '-datasource_exclude_train_class_ids',
+    nargs='*',
+    default=[],
+    required=False)
+
+parser.add_argument('-datasource', default='datasource_pytorch', type=str)
+
 args, args_other = parser.parse_known_args()
 args = ArgsUtils.add_other_args(args, args_other)
 args_other_names = ArgsUtils.extract_other_args_names(args_other)
+
+if len(args.datasource_include_test_class_ids) > 0:
+    args.datasource_include_test_class_ids = ' '.join(args.datasource_include_test_class_ids)
+if len(args.datasource_exclude_train_class_ids) > 0:
+    args.datasource_exclude_train_class_ids = ' '.join(args.datasource_exclude_train_class_ids)
 
 if args.hpc_queue == 'inf':
     args.hpc_gpu_max_queue = 0 # for old ones disable GPU
@@ -235,9 +254,13 @@ if len(grid) == 0:
 # add const params
 for each_seq in formated_params_seq:
     value = formated_params_seq[each_seq]
-    if len(value) == 1:
+    if isinstance(value, list):
+        if len(value) == 1:
+            for each_grid in grid:
+                each_grid[each_seq] = value[0]
+    else:
         for each_grid in grid:
-            each_grid[each_seq] = value[0]
+            each_grid[each_seq] = value
 
 path_base = os.path.dirname(os.path.abspath(__file__))
 
@@ -267,6 +290,8 @@ if args.single_task:
 for params_comb in grid:
     tmp_id += 1
     tmp_cnt += 1
+    params_comb['datasource_exclude_train_class_ids'] = args.datasource_exclude_train_class_ids
+    params_comb['datasource_include_test_class_ids'] = args.datasource_include_test_class_ids
     params_comb['tf_path_test'] = args.tf_path_test
     params_comb['tf_path_train'] = args.tf_path_train
     params_comb['tf_ratio_train'] = args.tf_ratio_train

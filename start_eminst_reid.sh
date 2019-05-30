@@ -7,15 +7,17 @@ cd ~/Documents/fassion_minst/
 
 
 
-# is_center_loss is_class_loss
-python taskgen.py -repeat 5 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_27_model_12_dobe_exp13_eminst \
+
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report may_27_model_12_dobe_exp13_eminst_reid \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type eminst \
 -optimizer adam \
+-datasource_exclude_train_class_ids 20 21 22 23 24 \
+-datasource_include_test_class_ids 20 21 22 23 24 \
 -params_grid embedding_size overlap_coef learning_rate \
 -learning_rate 1e-4 1e-5 1e-3 \
 -is_center_loss True \

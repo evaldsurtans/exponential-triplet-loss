@@ -617,7 +617,6 @@ def forward(batch, output_by_y, is_train):
 
     elif args.triplet_loss == 'standard':
         delta = sampled['positives_dist'] - sampled['negatives_dist'] + margin_distance
-        #print(f'samples: {delta.size(0)}')
         if delta.size(0) == 0: # no valid triplets mined
             loss = None
         else:
@@ -667,7 +666,7 @@ def forward(batch, output_by_y, is_train):
                     loss_center_inner = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
                     loss_center = -torch.log(1.0 - (loss_center_inner/(1.-C_norm)) + eps)
                 else:
-                    loss_center = torch.clamp(centers_dist - C_norm, 0.0)
+                    loss_center = torch.mean(torch.clamp(centers_dist - C_norm, 0.0))
 
                 center_loss_coef = args.center_loss_coef
                 if center_loss_coef <= 0.0:

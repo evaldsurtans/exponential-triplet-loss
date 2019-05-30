@@ -5,29 +5,29 @@ export TMPDIR=$HOME/tmp
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
-#emb size
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_21_model_12_dobe_exp13_cifar_100 \
+# is_model_encoder_pretrained
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report may_29_model_12_dobe_exp13_cifar_100 \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 400 \
+-epochs_count 100 \
 -datasource_type cifar_100 \
 -optimizer adam \
--params_grid center_loss_coef class_loss_coef pos_loss_coef neg_loss_coef \
--learning_rate 1e-4 \
+-params_grid overlap_coef learning_rate model_encoder \
+-learning_rate 1e-4 1e-5 1e-3 1e-2 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 1.0 0.0 5.0 \
--neg_loss_coef 1.0 0.0 5.0 \
--center_loss_coef 1.0 0.0 5.0 \
--class_loss_coef 1.0 0.0 5.0 \
--overlap_coef 1.2 \
+-pos_loss_coef 0.0 \
+-neg_loss_coef 1.0 \
+-center_loss_coef 0.0 \
+-class_loss_coef 1.0 \
+-overlap_coef 1.5 1.7 1.1 \
 -layers_embedding_type last \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
--is_model_encoder_pretrained True \
--model_encoder densenet121 \
+-is_model_encoder_pretrained False \
+-model_encoder densenet121 densenet161 resnet101 resnet18 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \
@@ -40,7 +40,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
--embedding_size 256 \
+-embedding_size 32 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
