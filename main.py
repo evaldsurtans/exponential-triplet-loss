@@ -96,6 +96,7 @@ parser.add_argument('-epochs_count', default=20, type=int)
 
 parser.add_argument('-optimizer', default='adam', type=str)
 parser.add_argument('-learning_rate', default=1e-5, type=float)
+parser.add_argument('-learning_rate_min', default=0, type=float)
 parser.add_argument('-weight_decay', default=0, type=float)
 parser.add_argument('-batch_size', default=114, type=int)
 
@@ -332,20 +333,24 @@ if args.device == 'cuda' and torch.cuda.device_count() > 1:
 
 model = model.to(args.device)
 
-optimizer_func = None
-if args.optimizer == 'adam':
-    optimizer_func = torch.optim.Adam(
-        model.parameters(),
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay
-    )
-elif args.optimizer == 'rmsprop':
-    optimizer_func = torch.optim.RMSprop(
-        model.parameters(),
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay
-    )
 
+def get_optimizer(lr):
+    optimizer = None
+    if args.optimizer == 'adam':
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay
+        )
+    elif args.optimizer == 'rmsprop':
+        optimizer = torch.optim.RMSprop(
+            model.parameters(),
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay
+        )
+    return optimizer
+
+optimizer_func = get_optimizer(args.learning_rate)
 
 def calc_err(meter):
     fpr, tpr, eer = -1, -1, -1
@@ -718,6 +723,7 @@ def prep_loss_for_stats(loss_val):
 
 state = {
     'epoch': 0,
+    'learning_rate': args.learning_rate,
     'best_param': -1,
     'avg_epoch_time': -1,
     'epoch_time': -1,
@@ -1217,8 +1223,18 @@ for epoch in range(1, args.epochs_count + 1):
     CsvUtils.add_results(args, state)
 
     if state['early_stopping_patience'] >= args.early_stopping_patience:
-        logging_utils.info(f'{args.name} early stopping')
-        break
+        is_stop = True
+        if args.learning_rate_min > 0:
+            if state['learning_rate'] >= args.learning_rate_min:
+                # schedule learning rate
+                state['learning_rate'] /= 10
+                optimizer_func = get_optimizer(state['learning_rate'])
+                logging_utils.info(f'{args.name} reducing LR {state["learning_rate"]}')
+                is_stop = False
+
+        if is_stop:
+            logging_utils.info(f'{args.name} early stopping')
+            break
 
 
 tensorboard_writer.close()
