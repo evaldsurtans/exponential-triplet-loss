@@ -67,6 +67,7 @@ parser.add_argument('-model', default='model_12_dobe', type=str)
 parser.add_argument('-model_encoder', default='resnet18', type=str)
 parser.add_argument('-is_model_encoder_pretrained', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-layers_embedding_type', default='last', type=str) #refined, pooled, last
+parser.add_argument('-layers_embedding_dropout', default=0.0, type=float)
 
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -125,8 +126,6 @@ parser.add_argument('-pos_loss_coef', default=0.0, type=float)
 parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-center_loss_min_count', default=100, type=int)
 parser.add_argument('-center_loss_coef', default=0.0, type=float)
-
-parser.add_argument('-is_kl_loss', default=False, type=lambda x: (str(x).lower() == 'true')) #TODO
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=32, type=int)
@@ -224,6 +223,7 @@ tmp = [
     'test_loss_neg',
     'train_loss_center',
     'test_loss_center',
+    'learning_rate_dyn',
     'avg_epoch_time']
 if not args.params_report is None:
     for it in args.params_report:
@@ -275,6 +275,7 @@ tmp = [
     'train_loss_class',
     'train_loss_center',
     'test_loss_center',
+    'learning_rate_dyn',
     'epoch_time',
     'early_percent_improvement']
 if not args.params_report_local is None:
@@ -346,6 +347,13 @@ def get_optimizer(lr):
         optimizer = torch.optim.RMSprop(
             model.parameters(),
             lr=args.learning_rate,
+            weight_decay=args.weight_decay
+        )
+    elif args.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=args.learning_rate,
+            momentum=0.9,
             weight_decay=args.weight_decay
         )
     return optimizer
@@ -723,7 +731,7 @@ def prep_loss_for_stats(loss_val):
 
 state = {
     'epoch': 0,
-    'learning_rate': args.learning_rate,
+    'learning_rate_dyn': args.learning_rate,
     'best_param': -1,
     'avg_epoch_time': -1,
     'epoch_time': -1,
@@ -837,6 +845,7 @@ meters = dict(
     test_dist_negatives_hard = tnt.meter.AverageValueMeter(),
 )
 
+state_before_stopping = copy.deepcopy(state)
 for epoch in range(1, args.epochs_count + 1):
     state_before = copy.deepcopy(state)
     logging.info('epoch: {} / {}'.format(epoch, args.epochs_count))
@@ -1225,12 +1234,21 @@ for epoch in range(1, args.epochs_count + 1):
     if state['early_stopping_patience'] >= args.early_stopping_patience:
         is_stop = True
         if args.learning_rate_min > 0:
-            if state['learning_rate'] >= args.learning_rate_min:
-                # schedule learning rate
-                state['learning_rate'] /= 10
-                optimizer_func = get_optimizer(state['learning_rate'])
-                logging_utils.info(f'{args.name} reducing LR {state["learning_rate"]}')
-                is_stop = False
+            if state['learning_rate_dyn'] >= args.learning_rate_min:
+
+                percent_improvement = args.early_stopping_param_coef * (state[args.early_stopping_param] - state_before_stopping[args.early_stopping_param]) / state_before_stopping[args.early_stopping_param]
+                if math.isnan(percent_improvement):
+                    percent_improvement = 0
+
+                # if improved since last stopping try
+                if percent_improvement > 0:
+                    # schedule learning rate
+                    state_before_stopping = copy.deepcopy(state)
+                    state['learning_rate_dyn'] /= 10
+                    state['early_stopping_patience'] = 0
+                    optimizer_func = get_optimizer(state['learning_rate_dyn'])
+                    logging_utils.info(f'{args.name} reducing LR {state["learning_rate_dyn"]}')
+                    is_stop = False
 
         if is_stop:
             logging_utils.info(f'{args.name} early stopping')

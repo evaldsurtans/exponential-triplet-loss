@@ -7,26 +7,30 @@ cd ~/Documents/fassion_minst/
 
 
 
-# is_center_loss is_class_loss
-python taskgen.py -repeat 5 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report may_27_model_12_dobe_exp13_eminst \
+# REPEAT!
+# layers_embedding_type
+python taskgen.py -repeat 5 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report jun_6_model_12_dobe_exp13_eminst_fix_emb_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type eminst \
 -optimizer adam \
--params_grid embedding_size overlap_coef learning_rate \
--learning_rate 1e-4 1e-5 1e-3 \
+-params_grid overlap_coef layers_embedding_type layers_embedding_dropout \
+-learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 0.0 \
+-pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 0.0 \
--class_loss_coef 1.0 \
--overlap_coef 1.5 1.7 1.9 1.3 \
--layers_embedding_type last \
+-center_loss_coef 1.0 \
+-class_loss_coef 0.0 \
+-overlap_coef 0.8 1.0 1.5 \
+-layers_embedding_dropout 0.5 0.0 0.8 \
+-layers_embedding_type pooled last \
+-embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
+-embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
 -model_encoder densenet121 \
@@ -38,11 +42,9 @@ python taskgen.py -repeat 5 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -pos_coef 0.0 \
 -neg_coef 0.0 \
 -triplet_loss exp13 \
--embedding_layers 0 \
 -embedding_layers_hidden_func relu \
--embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
--embedding_size 16 64 128 \
+-embedding_size 128 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \

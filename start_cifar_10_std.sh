@@ -9,18 +9,18 @@ cd ~/Documents/fassion_minst/
 # EXTEND TESTS after bugfix is_center_loss True
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report may_29_model_12_dobe_exp13_cifar_10_std \
+-report jun_4_model_12_dobe_exp13_cifar_10_std_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type cifar_10 \
 -optimizer adam \
 -params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss \
--learning_rate 1e-4 1e-3 1e-5 \
+-learning_rate 1e-4 1e-3 3e-4 \
 -is_center_loss True False \
 -is_class_loss False True \
 -triplet_sampler_var hard semi_hard \
--triplet_loss_margin 0.2 0.1 0.3 0.4 \
+-triplet_loss_margin 0.2 2.0 5.0 \
 -pos_loss_coef 0.0 \
 -neg_loss_coef 1.0 \
 -center_loss_coef 0.0 \
@@ -43,7 +43,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -embedding_layers_hidden_func relu \
 -embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
--embedding_size 32 \
+-embedding_size 128 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \

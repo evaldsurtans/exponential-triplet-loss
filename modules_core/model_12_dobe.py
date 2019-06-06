@@ -28,7 +28,7 @@ import torchvision.models
 import torchvision.models.resnet
 import torch.utils.model_zoo
 
-
+from modules.block_pass import Pass
 from modules.block_resnet_2d_leaky import ResBlock2D, ConvBlock2D
 from modules.block_reshape2 import Reshape
 from modules.dict_to_obj import DictToObj
@@ -64,16 +64,23 @@ class Model(torch.nn.Module):
                 if idx == args.embedding_layers - 1:
                     output_size_emb = args.embedding_size
 
+                if self.args.layers_embedding_dropout > 0:
+                    self.layers_embedding.add_module(f'dropout_{idx}', torch.nn.Dropout(p=self.args.layers_embedding_dropout))
+
                 self.layers_embedding.add_module(f'linear_{idx}', torch.nn.Linear(input_size_emb, output_size_emb, bias=False))
                 if idx < args.embedding_layers - 1:
                     self.layers_embedding.add_module(f'relu_linear_{idx}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
                 input_size_emb = output_size_emb
         elif args.layers_embedding_type == 'pooled':
             self.layers_embedding = torch.nn.Sequential(
-                Reshape(shape=(1, self.channels_conv_size)),
-                torch.nn.AdaptiveAvgPool1d(output_size=self.args.embedding_size),
-                Reshape(shape=self.args.embedding_size),
+                Reshape(shape=(1, self.channels_conv_size))
             )
+
+            if self.args.layers_embedding_dropout > 0:
+                self.layers_embedding.add_module(f'dropout_emb', torch.nn.Dropout(p=self.args.layers_embedding_dropout))
+
+            self.layers_embedding.add_module(f'pool_emb', torch.nn.AdaptiveAvgPool1d(output_size=self.args.embedding_size))
+            self.layers_embedding.add_module(f'last_reshape', Reshape(shape=self.args.embedding_size))
         else:
             func = torch.nn.ReLU()
 
@@ -84,19 +91,27 @@ class Model(torch.nn.Module):
                 elif self.args.suffix_affine_layers_hidden_func == 'maxout':
                     func = MaxoutLinear(1, 1, pool_size=self.args.suffix_affine_layers_hidden_params)
 
+                func_dropout = Pass()
+                if self.args.layers_embedding_dropout > 0:
+                    func_dropout = torch.nn.Dropout(p=self.args.layers_embedding_dropout)
+
                 # refined part pooling version
                 # https://arxiv.org/pdf/1711.09349.pdf
                 self.layers_embedding = torch.nn.Sequential(
                     torch.nn.BatchNorm2d(num_features=self.channels_conv_size),
                     func,
+                    func_dropout,
                     torch.nn.Conv2d(kernel_size=1, stride=1, in_channels=self.channels_conv_size, out_channels=self.args.embedding_size, bias=False),
                     Reshape(shape=self.args.embedding_size)
                 )
-            else: # last
+            elif args.layers_embedding_type == 'last': # last
                 self.layers_embedding = torch.nn.Sequential(
                     Reshape(shape=self.channels_conv_size),
                     torch.nn.BatchNorm1d(num_features=self.channels_conv_size)
                 )
+
+                if self.args.layers_embedding_dropout > 0:
+                    self.layers_embedding.add_module(f'dropout_emb', torch.nn.Dropout(p=self.args.layers_embedding_dropout))
 
                 if self.args.suffix_affine_layers_hidden_func == 'kaf':
                     self.layers_embedding.add_module('emb_last_lin', torch.nn.Linear(in_features=self.channels_conv_size, out_features=self.args.embedding_size))
@@ -163,7 +178,7 @@ class Model(torch.nn.Module):
 
             if self.args.input_features != model_pretrained.conv1.in_channels:
                 weight_conv1_pretrained = model_pretrained.conv1.weight.data
-                model_pretrained.conv1 = torch.nn.Conv2d(self.args.input_features, 64, kernel_size=7, stride=2, padding=3, bias=False)
+                model_pretrained.conv1 = torch.nn.Conv2d(self.args.input_features, model_pretrained.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
 
                 idx_rgb = 0
                 for idx in range(self.args.input_features):
@@ -181,7 +196,7 @@ class Model(torch.nn.Module):
             conv1 = list(model_pretrained.features.children())[0]
             if self.args.input_features != conv1.in_channels:
                 weight_conv1_pretrained = conv1.weight.data
-                conv1 = torch.nn.Conv2d(self.args.input_features, 64, kernel_size=7, stride=2, padding=3, bias=False)
+                conv1 = torch.nn.Conv2d(self.args.input_features, conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
 
                 idx_rgb = 0
                 for idx in range(self.args.input_features):

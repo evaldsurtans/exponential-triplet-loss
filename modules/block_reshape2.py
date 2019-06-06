@@ -10,4 +10,4 @@ class Reshape(nn.Module):
             self.shape = tuple([-1] + list(shape))
 
     def forward(self, x):
-            return x.view(self.shape)
+        return x.view(self.shape)

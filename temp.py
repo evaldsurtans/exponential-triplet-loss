@@ -11,6 +11,10 @@ maxs = []
 avgs = []
 deltas = []
 
+m = nn.AdaptiveAvgPool1d(2)
+input = torch.randn(32, 8)
+output = m(input)
+
 tmp = torch.rand((3, 4))
 tmp_s1 = F.softmax(tmp, dim=1)
 tmp_s0 = F.softmax(tmp, dim=0)
