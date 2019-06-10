@@ -114,7 +114,6 @@ parser.add_argument('-overlap_coef', default=1.2, type=float)
 parser.add_argument('-abs_coef', default=1.5, type=float)
 parser.add_argument('-tan_coef', default=20.0, type=float)
 parser.add_argument('-sin_coef', default=20.0, type=float)
-parser.add_argument('-kl_coef', default=1e-3, type=float)
 
 parser.add_argument('-slope_coef', default=3.0, type=float)
 parser.add_argument('-neg_coef', default=2.0, type=float)
@@ -122,6 +121,8 @@ parser.add_argument('-pos_coef', default=3.0, type=float)
 
 parser.add_argument('-neg_loss_coef', default=0.0, type=float)
 parser.add_argument('-pos_loss_coef', default=0.0, type=float)
+
+parser.add_argument('-noise_training', default=0.0, type=float)
 
 parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-center_loss_min_count', default=100, type=int)
@@ -386,6 +387,10 @@ def forward(batch, output_by_y, is_train):
     output = None
     output_class = None
     if is_train:
+        if args.noise_training > 0.0:
+            noise = torch.sigmoid(torch.zeros_like(x).data.normal_())
+            x = args.noise_training * noise + (1.0 - args.noise_training) * x
+
         if hasattr(model_module, 'forward_with_classification'):
             output, output_class = model.forward_with_classification(x)
 
