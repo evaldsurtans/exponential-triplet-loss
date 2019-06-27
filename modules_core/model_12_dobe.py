@@ -67,9 +67,9 @@ class Model(torch.nn.Module):
                 if self.args.layers_embedding_dropout > 0:
                     self.layers_embedding.add_module(f'dropout_{idx}', torch.nn.Dropout(p=self.args.layers_embedding_dropout))
 
-                self.layers_embedding.add_module(f'linear_{idx}', torch.nn.Linear(input_size_emb, output_size_emb, bias=False))
+                self.layers_embedding.add_module(f'emb_linear_{idx}', torch.nn.Linear(input_size_emb, output_size_emb, bias=False))
                 if idx < args.embedding_layers - 1:
-                    self.layers_embedding.add_module(f'relu_linear_{idx}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
+                    self.layers_embedding.add_module(f'emb_relu_linear_{idx}', torch.nn.LeakyReLU(negative_slope=self.args.leaky_relu_slope))
                 input_size_emb = output_size_emb
         elif args.layers_embedding_type == 'pooled':
             self.layers_embedding = torch.nn.Sequential(
@@ -157,6 +157,24 @@ class Model(torch.nn.Module):
 
         torch_utils.init_parameters(self.layers_embedding)
 
+        for name, param in self.layers_embedding.named_parameters():
+            if param.requires_grad:
+                if name.startswith('emb_') and 'bias' not in name:
+                    if len(param.size()) > 1:
+                        if args.embedding_init == 'xavier':
+                            torch.nn.init.xavier_uniform_(param)
+                        elif args.embedding_init == 'xavier_normal':
+                            torch.nn.init.xavier_normal_(param)
+                        elif args.embedding_init == 'uniform':
+                            torch.nn.init.uniform_(param)
+                        elif args.embedding_init == 'normal':
+                            torch.nn.init.normal_(param)
+                        elif args.embedding_init == 'zeros' or args.embedding_init == 'zero':
+                            torch.nn.init.zeros_(param)
+                        elif args.embedding_init == 'ones' or args.embedding_init == 'one':
+                            torch.nn.init.ones_(param)
+
+
     def __create_layers_encoder(self, name, input_size):
 
         self.channels_conv_size = 1 #inout channels
@@ -237,7 +255,7 @@ class Model(torch.nn.Module):
 
         output_enc = self.layers_encoder.forward(x)
         output_emb = self.layers_embedding.forward(output_enc)
-        output_norm = torch_utils.normalize_output(output_emb, self.args.embedding_norm)
+        output_norm = torch_utils.normalize_output(output_emb, self.args.embedding_norm, self.args.embedding_scale)
 
         return output_norm
 

@@ -6,16 +6,18 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
-# layers_embedding_type + repeat
+# repeat
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_6_model_12_dobe_exp13_cifar_10_fix_emb_128 \
+-report jun_15_model_12_dobe_exp13_cifar_10_fix_emb_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type cifar_10 \
 -optimizer adam \
--params_grid overlap_coef embedding_layers layers_embedding_dropout \
+-params_grid overlap_coef embedding_init center_loss_min_count \
+-embedding_init uniform normal xavier \
+-center_loss_min_count 500 1000 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
@@ -23,10 +25,10 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
 -class_loss_coef 0.0 \
--overlap_coef 1.5 1.2 1.1 1.0 \
--layers_embedding_dropout 0.5 0.0 0.8 \
--layers_embedding_type lin \
--embedding_layers 1 2 \
+-overlap_coef 1.5 1.0 0.5 0.3 0.1 \
+-layers_embedding_dropout 0.0 \
+-layers_embedding_type last \
+-embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \

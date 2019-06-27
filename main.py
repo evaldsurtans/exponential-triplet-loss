@@ -84,7 +84,9 @@ parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
 parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
+
 parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 none
+parser.add_argument('-embedding_scale', default=1.0, type=float) #l2-softmax
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
@@ -125,16 +127,17 @@ parser.add_argument('-pos_loss_coef', default=0.0, type=float)
 parser.add_argument('-noise_training', default=0.0, type=float)
 
 parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-center_loss_min_count', default=100, type=int)
+parser.add_argument('-center_loss_min_count', default=500, type=int)
 parser.add_argument('-center_loss_coef', default=0.0, type=float)
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
-parser.add_argument('-embedding_size', default=32, type=int)
+parser.add_argument('-embedding_size', default=256, type=int)
+parser.add_argument('-embedding_init', default='xavier', type=str)
 
 parser.add_argument('-embedding_layers', default=0, type=int)
 parser.add_argument('-embedding_layers_hidden', default=512, type=int)
 parser.add_argument('-embedding_layers_hidden_func', default='maxout', type=str)
-parser.add_argument('-embedding_layers_last_norm', default='instance', type=str) # none instance batch layer local
+parser.add_argument('-embedding_layers_last_norm', default='none', type=str) # none instance batch layer local
 
 parser.add_argument('-suffix_affine_layers', default=2, type=int)
 parser.add_argument('-suffix_affine_layers_hidden', default=1024, type=int)
@@ -401,7 +404,7 @@ def forward(batch, output_by_y, is_train):
         else:
             output = model.forward(x)
 
-    max_distance = 2.0 # cosine distance
+    max_distance = 2.0 # cosine distance / L2 euclidean
 
     if args.is_triplet_loss_margin_auto:
         margin_distance = args.overlap_coef * max_distance / args.datasource_classes_train
@@ -414,6 +417,7 @@ def forward(batch, output_by_y, is_train):
     C_norm = args.overlap_coef/K
     if args.triplet_similarity == 'cos':
         C_norm *= 2.0
+    C_norm_center = C_norm * 0.5
 
     # in case of exp mining we should use normalized margin from C_norm
     if 'abs_margin' in args.filter_samples or 'abs_margin_asym' in args.filter_samples:
@@ -681,10 +685,10 @@ def forward(batch, output_by_y, is_train):
             if args.is_center_loss:
                 if args.triplet_loss == 'exp13':
                     eps = 1e-20
-                    loss_center_inner = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
-                    loss_center = -torch.log(1.0 - (loss_center_inner/(1.-C_norm)) + eps)
+                    loss_center_inner = torch.mean(torch.clamp(pos_norm - C_norm_center, 0.0))
+                    loss_center = -torch.log(1.0 - (loss_center_inner/(1.-C_norm_center)) + eps)
                 else:
-                    loss_center = torch.mean(torch.clamp(centers_dist - C_norm, 0.0))
+                    loss_center = torch.mean(torch.clamp(centers_dist - C_norm_center, 0.0))
 
                 center_loss_coef = args.center_loss_coef
                 if center_loss_coef <= 0.0:

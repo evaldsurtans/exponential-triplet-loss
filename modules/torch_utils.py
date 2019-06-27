@@ -17,7 +17,7 @@ def init_parameters(model):
         total_param_size += each_param_size
         #logging.info('{} {} {}'.format(name, param.size(), each_param_size))
 
-        if param.requires_grad == True:
+        if param.requires_grad:
             if len(param.size()) > 1: # is weight or bias
                 if 'conv' in name and name.endswith('.weight'):
                     torch.nn.init.kaiming_uniform_(param, mode='fan_out', nonlinearity='relu')
@@ -39,15 +39,34 @@ def init_parameters(model):
     logging.info(f'total_param_size: {total_param_size}')
 
 
-def normalize_output(output_emb, embedding_norm):
+def init_embeddings(layers_embedding, args):
+    for name, param in layers_embedding.named_parameters():
+        if param.requires_grad:
+            if name.startswith('emb_') and 'bias' not in name:
+                if len(param.size()) > 1:
+                    if args.embedding_init == 'xavier':
+                        torch.nn.init.xavier_uniform_(param)
+                    elif args.embedding_init == 'xavier_normal':
+                        torch.nn.init.xavier_normal_(param)
+                    elif args.embedding_init == 'uniform':
+                        torch.nn.init.uniform_(param)
+                    elif args.embedding_init == 'normal':
+                        torch.nn.init.normal_(param)
+                    elif args.embedding_init == 'zeros':
+                        torch.nn.init.zeros_(param)
+                    elif args.embedding_init == 'ones':
+                        torch.nn.init.ones_(param)
+
+
+def normalize_output(output_emb, embedding_norm, embedding_scale=1.0):
     if embedding_norm == 'l2':
         norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
-        output_norm = output_emb / norm
+        output_norm = output_emb * embedding_scale / norm
     elif embedding_norm == 'unit_range':
         norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
-        div_norm = 1.0 / norm
+        div_norm = embedding_scale / norm
         ones_norm = torch.ones_like(div_norm)
-        scaler = torch.where(norm > 1.0, div_norm, ones_norm)
+        scaler = torch.where(norm > embedding_scale, div_norm, ones_norm)
         output_norm = output_emb * scaler
     else: # none
         output_norm = output_emb

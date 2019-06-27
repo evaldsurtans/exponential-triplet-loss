@@ -6,34 +6,37 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
-
-# REPEAT!
-# layers_embedding_type
-python taskgen.py -repeat 5 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_6_model_12_dobe_exp13_eminst_fix_emb_128 \
+-report jun_27_model_12_dobe_exp13_eminst_unit \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type eminst \
 -optimizer adam \
--params_grid overlap_coef layers_embedding_type layers_embedding_dropout \
+-params_grid overlap_coef center_loss_coef embedding_scale pos_loss_coef \
+-center_loss_min_count 300 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 1.0 \
+-pos_loss_coef 1.0 2.0 3.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
--class_loss_coef 0.0 \
--overlap_coef 0.8 1.0 1.5 \
--layers_embedding_dropout 0.5 0.0 0.8 \
--layers_embedding_type pooled last \
+-center_loss_coef 1.0 2.0 3.0 \
+-class_loss_coef 1.0 \
+-embedding_init xavier uniform \
+-overlap_coef 1.0 20.0 40.0 \
+-embedding_norm unit_range \
+-embedding_scale 1.0 2.0 \
+-triplet_similarity euclidean \
+-layers_embedding_dropout 0.0 \
+-layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet121 \
+-model_encoder resnet18 \
+-embedding_size 128 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \
@@ -44,7 +47,6 @@ python taskgen.py -repeat 5 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -triplet_loss exp13 \
 -embedding_layers_hidden_func relu \
 -leaky_relu_slope 0.01 \
--embedding_size 128 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
@@ -58,12 +60,10 @@ python taskgen.py -repeat 5 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm unit_range \
--triplet_similarity euclidean \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_5_zipper  \
+-triplet_sampler triplet_sampler_4 \
 -model model_12_dobe \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

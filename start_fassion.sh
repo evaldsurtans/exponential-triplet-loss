@@ -8,13 +8,14 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_6_model_12_dobe_exp13_fassion_fix_emb_128 \
+-report jun_15_model_12_dobe_exp13_fassion_128_center_fix_b \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type fassion_minst \
 -optimizer adam \
--params_grid overlap_coef layers_embedding_type layers_embedding_dropout \
+-params_grid overlap_coef layers_embedding_dropout \
+-center_loss_min_count 500 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
@@ -22,9 +23,9 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
 -class_loss_coef 0.0 \
--overlap_coef 0.8 1.0 1.2 1.5 \
--layers_embedding_dropout 0.5 0.0 0.8 \
--layers_embedding_type pooled last \
+-overlap_coef 0.8 0.5 0.3 0.1 0.0 0.4 \
+-layers_embedding_dropout 0.5 0.0 0.8 0.7 0.6 \
+-layers_embedding_type last \
 -embedding_layers 0 \
 -embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_func maxout \
