@@ -412,7 +412,7 @@ def forward(batch, output_by_y, is_train):
         margin_distance = args.triplet_loss_margin
 
     K = args.datasource_classes_train
-    C_norm = args.overlap_coef * max_distance/K
+    C_norm = args.overlap_coef / K # max_distance included in pos_norm, neg_norm
     C_norm_center = C_norm * 0.5
 
     # in case of exp mining we should use normalized margin from C_norm
