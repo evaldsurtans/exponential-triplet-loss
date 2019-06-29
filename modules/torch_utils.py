@@ -52,7 +52,7 @@ def init_embeddings(layers_embedding, args):
                         torch.nn.init.uniform_(param)
                     elif args.embedding_init == 'normal':
                         torch.nn.init.normal_(param)
-                    elif args.embedding_init == 'zeros':
+                    elif args.embedding_init == 'zeros' or args.embedding_init == 'zero':
                         torch.nn.init.zeros_(param)
                     elif args.embedding_init == 'ones':
                         torch.nn.init.ones_(param)

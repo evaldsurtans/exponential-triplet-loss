@@ -7,26 +7,26 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_26_model_12_dobe_exp13_cifar_100_unit \
+-report jun_28_model_12_dobe_exp13_cifar_100_unit \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 100 \
+-epochs_count 200 \
 -datasource_type cifar_100 \
 -early_stopping_delta_percent 1e-4 \
 -optimizer adam \
--params_grid overlap_coef center_loss_coef pos_loss_coef embedding_scale embedding_init \
+-params_grid learning_rate embedding_size overlap_coef center_loss_coef pos_loss_coef embedding_init \
 -center_loss_min_count 300 \
--learning_rate 1e-4 \
+-learning_rate 1e-4 1e-3 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 1.0 2.0 3.0 \
+-pos_loss_coef 2.0 3.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 2.0 3.0 \
+-center_loss_coef 2.0 3.0 \
 -class_loss_coef 1.0 \
--embedding_init xavier uniform \
--overlap_coef 1.0 2.0 20.0 40.0 50.0 70.0 \
+-embedding_init xavier zeros \
+-overlap_coef 1.0 20.0 40.0 80.0 160.0 \
 -embedding_norm unit_range \
--embedding_scale 1.0 2.0 \
+-embedding_scale 1.0 \
 -triplet_similarity euclidean \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
@@ -35,8 +35,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder resnet18 \
--embedding_size 128 \
+-model_encoder densenet161 \
+-embedding_size 128 256 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \

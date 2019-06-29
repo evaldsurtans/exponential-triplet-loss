@@ -404,19 +404,15 @@ def forward(batch, output_by_y, is_train):
         else:
             output = model.forward(x)
 
-    max_distance = 2.0 # cosine distance / L2 euclidean
+    max_distance = 2.0 * args.embedding_scale # cosine distance / L2 euclidean
 
     if args.is_triplet_loss_margin_auto:
         margin_distance = args.overlap_coef * max_distance / args.datasource_classes_train
-        if args.triplet_similarity == 'cos':
-            margin_distance *= 2.0
     else:
         margin_distance = args.triplet_loss_margin
 
     K = args.datasource_classes_train
-    C_norm = args.overlap_coef/K
-    if args.triplet_similarity == 'cos':
-        C_norm *= 2.0
+    C_norm = args.overlap_coef * max_distance/K
     C_norm_center = C_norm * 0.5
 
     # in case of exp mining we should use normalized margin from C_norm
