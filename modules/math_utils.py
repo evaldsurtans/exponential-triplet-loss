@@ -19,7 +19,7 @@ def cosine_similarity(a, b, reduce=np.average):
         a = np.expand_dims(a, axis=0)
     if len(b.shape) == 1:
         b = np.expand_dims(b, axis=0)
-    result = 1.0 - sklearn.metrics.pairwise.cosine_similarity(a, b)
+    result = 1.0 - sklearn.metrics.pairwise.pairwise_distances(a, b, metric="cosine", n_jobs=-1)
     if result.shape[0] == 0:
         return float(result[0])
     return float(reduce(result))

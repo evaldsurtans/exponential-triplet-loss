@@ -51,12 +51,12 @@ class CentroidClassificationUtils(object):
 
         if triplet_similarity == 'cos':
             if isinstance(x1, np.ndarray):
-                dist = sklearn.metrics.pairwise.cosine_distances(x1, x2)[0]
+                dist = sklearn.metrics.pairwise.pairwise_distances(x1, x2, metric="cosine", n_jobs=-1)[0]
             else:
                 dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
         else:
             if isinstance(x1, np.ndarray):
-                dist = sklearn.metrics.pairwise.paired_euclidean_distances(x1, x2)
+                dist = sklearn.metrics.pairwise.pairwise_distances(x1, x2, metric="euclidean", n_jobs=-1)[0]
             else:
                 dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 

@@ -255,7 +255,14 @@ class Model(torch.nn.Module):
 
         output_enc = self.layers_encoder.forward(x)
         output_emb = self.layers_embedding.forward(output_enc)
-        output_norm = torch_utils.normalize_output(output_emb, self.args.embedding_norm, self.args.embedding_scale)
+
+        if self.args.embedding_function != 'none':
+            output_emb *= self.args.embedding_scale
+
+        output_norm = torch_utils.normalize_output(
+            output_emb,
+            self.args.embedding_norm,
+            self.args.embedding_scale)
 
         return output_norm
 
