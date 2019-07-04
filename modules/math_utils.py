@@ -19,8 +19,12 @@ def cosine_similarity(a, b, reduce=np.average):
         a = np.expand_dims(a, axis=0)
     if len(b.shape) == 1:
         b = np.expand_dims(b, axis=0)
-    result = 1.0 - sklearn.metrics.pairwise.pairwise_distances(a, b, metric="cosine", n_jobs=-1)
-    if result.shape[0] == 0:
+    n_jobs = 8 if a.shape[0] > 1 else 1
+    with sklearn.config_context(working_memory=1024):
+        result = np.zeros((0, ))
+        for each in sklearn.metrics.pairwise.pairwise_distances_chunked(a, b, metric="cosine", n_jobs=n_jobs):
+            result = np.concatenate((result, np.diag(each)), axis=0)
+    if result.shape[0] == 1:
         return float(result[0])
     return float(reduce(result))
 

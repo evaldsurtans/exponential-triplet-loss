@@ -1,8 +1,11 @@
+import multiprocessing
 import os
 import unicodedata
 import string
 import glob
 import io
+from multiprocessing import Process
+
 import torch
 import torch.nn
 import torch.nn.functional as F
@@ -28,6 +31,7 @@ import traceback, sys
 import itertools
 from numpy import dot
 from numpy.linalg import norm
+import logging
 
 from modules.dict_to_obj import DictToObj
 from modules.math_utils import cosine_similarity, normalize_vec
@@ -37,6 +41,7 @@ class CentroidClassificationUtils(object):
 
     @staticmethod
     def get_distance(x1, x2, triplet_similarity):
+        n_jobs = 8 if x1.shape[0] > 1 else 1
         is_item = False
         if isinstance(x1, np.ndarray):
             if len(x1.shape) == 1:
@@ -49,16 +54,22 @@ class CentroidClassificationUtils(object):
                 x2 = x2.unsqueeze(0)
                 is_item = True
 
-        if triplet_similarity == 'cos':
-            if isinstance(x1, np.ndarray):
-                dist = sklearn.metrics.pairwise.pairwise_distances(x1, x2, metric="cosine", n_jobs=-1)[0]
+        # latest needed: conda install -c anaconda scikit-learn
+        with sklearn.config_context(working_memory=1024):
+            if triplet_similarity == 'cos':
+                if isinstance(x1, np.ndarray):
+                    dist = np.zeros((0, ))
+                    for each in sklearn.metrics.pairwise.pairwise_distances_chunked(x1, x2, metric="cosine", n_jobs=n_jobs):
+                        dist = np.concatenate((dist, np.diag(each)), axis=0)
+                else:
+                    dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
             else:
-                dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
-        else:
-            if isinstance(x1, np.ndarray):
-                dist = sklearn.metrics.pairwise.pairwise_distances(x1, x2, metric="euclidean", n_jobs=-1)[0]
-            else:
-                dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
+                if isinstance(x1, np.ndarray):
+                    dist = np.zeros((0, ))
+                    for each in sklearn.metrics.pairwise.pairwise_distances_chunked(x1, x2, metric="euclidean", n_jobs=n_jobs):
+                        dist = np.concatenate((dist, np.diag(each)), axis=0)
+                else:
+                    dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
         if is_item:
             dist = dist[0]
@@ -96,55 +107,39 @@ class CentroidClassificationUtils(object):
 
         predicted = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
-        target_y = []
 
-        for idx_emb, embedding in enumerate(embeddings):
+        def process_class(y_idx):
+            y_embedding = class_centroids[y_idx]
+            max_dist = class_max_dist[y_idx]
 
-            if np.isnan(embedding).any():
-                logging.error(f'something wrong coming out of model calulate_classes NaN: {idx_emb}')
-                continue
+            dists = None
+            if y_idx in distances_precomputed.keys():
+                dists = distances_precomputed[y_idx]
+            else:
+                distances_precomputed[y_idx] = {}
 
-            y_idx_real = y_list[idx_emb]
+            if dists is None:
+                logging.info(f'center calc: {y_idx} len: {len(list(class_max_dist.keys()))} / {len(embeddings)} sim: {triplet_similarity}')
+                # calculate if in range of some centroid other than real one
+                np_class_centroids_tiled = np.tile(y_embedding, (len(embeddings),1))
+                dists = CentroidClassificationUtils.get_distance(embeddings, np_class_centroids_tiled, triplet_similarity)
+                distances_precomputed[y_idx] = dists
 
-            closest_dist = float('Inf')
-            closest_idx = -1 # if cause error then something wrong with code
-
-            for key in class_centroids.keys():
-
-                y_idx = key
-                y_embedding = class_centroids[key]
-                max_dist = class_max_dist[key]
-
-                dist = None
-                if key in distances_precomputed.keys():
-                    if idx_emb in distances_precomputed[key].keys():
-                        dist = distances_precomputed[key][idx_emb]
-                else:
-                    distances_precomputed[key] = {}
-
-                if dist is None:
-                    # calculate if in range of some centroid other than real one
-                    dist = CentroidClassificationUtils.get_distance(embedding, y_embedding, triplet_similarity)
-                    distances_precomputed[key][idx_emb] = dist
-
-                if type == 'range':
+            if type == 'range':
+                for idx_emb, dist in enumerate(dists):
                     if max_dist > dist:
                         predicted[idx_emb][y_idx] += 1.0
+            else:
+                idx_emb = np.argmin(dists)
+                predicted[idx_emb][y_idx] = 1.0
 
-                if closest_dist > dist:
-                    closest_dist = dist
-                    closest_idx = y_idx
-
-            if type == 'closest':
-                predicted[idx_emb][closest_idx] = 1.0
-
-            target[idx_emb][y_idx_real] = 1.0
-            target_y.append(y_idx_real)
+        for y_idx in class_max_dist.keys():
+            process_class(y_idx)
 
         if type == 'range':
             # predicted sum can be 0 if none in the range
             predicted = predicted /(np.sum(predicted, axis=1, keepdims=True) + 1e-18)
 
-        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(target_y)), class_max_dist, class_centroids, distances_precomputed
+        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(y_list)), class_max_dist, class_centroids, distances_precomputed
 
 

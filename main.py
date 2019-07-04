@@ -300,7 +300,7 @@ if os.path.exists(run_path):
     while os.path.exists(run_path):
         pass
 
-tensorboard_writer = tensorboardX.SummaryWriter(log_dir=run_path)
+tensorboard_writer = tensorboardX.SummaryWriter(run_path)
 tensorboard_utils = TensorBoardUtils(tensorboard_writer)
 logging_utils = LoggingUtils(filename=os.path.join(run_path, 'log.txt'))
 is_logged_cnorm = False
