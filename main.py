@@ -404,7 +404,9 @@ def forward(batch, output_by_y, is_train):
         else:
             output = model.forward(x)
 
-    max_distance = 2.0 * args.embedding_scale # cosine distance / L2 euclidean
+    max_distance = 2.0 # cos
+    if args.triplet_similarity != 'cos': # euclidean
+        max_distance *= args.embedding_scale
 
     if args.is_triplet_loss_margin_auto:
         margin_distance = args.overlap_coef * max_distance / args.datasource_classes_train
@@ -1004,6 +1006,7 @@ for epoch in range(1, args.epochs_count + 1):
             type='closest',
             norm=args.embedding_norm,
             triplet_similarity=args.triplet_similarity,
+            mode=args.device,
             class_max_dist=None,
             class_centroids=None,
             distances_precomputed=None
@@ -1022,6 +1025,7 @@ for epoch in range(1, args.epochs_count + 1):
             type='range',
             norm=args.embedding_norm,
             triplet_similarity=args.triplet_similarity,
+            mode=args.device,
             class_max_dist=class_max_dist,
             class_centroids=class_centroids,
             distances_precomputed=distances_precomputed)
@@ -1078,7 +1082,7 @@ for epoch in range(1, args.epochs_count + 1):
                 key_b = keys[idx_key_b]
 
                 # find closest class
-                dist = CentroidClassificationUtils.get_distance(class_centroids[key_a], class_centroids[key_b], args.triplet_similarity)
+                dist = CentroidClassificationUtils.get_distance(class_centroids[key_a], class_centroids[key_b], args.triplet_similarity, mode=args.device)
                 if closest_dist > dist:
                     closest_dist = dist
                     closest_key_b = key_b
@@ -1088,9 +1092,9 @@ for epoch in range(1, args.epochs_count + 1):
                 embeddings_negative = np.array(output_by_y[closest_key_b]['embeddings'])
 
                 embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_positive), 1))
-                hist_positives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_positive, embeddings_positive_center, args.triplet_similarity).tolist()
+                hist_positives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_positive, embeddings_positive_center, args.triplet_similarity, mode=args.device).tolist()
                 embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_negative), 1))
-                hist_negatives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_negative, embeddings_positive_center, args.triplet_similarity).tolist()
+                hist_negatives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_negative, embeddings_positive_center, args.triplet_similarity, mode=args.device).tolist()
 
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_pos', np.array(hist_positives_dist_closest), epoch, bins=histogram_bins)
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_neg', np.array(hist_negatives_dist_closest), epoch, bins=histogram_bins)

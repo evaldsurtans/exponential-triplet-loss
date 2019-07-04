@@ -40,7 +40,7 @@ from modules.math_utils import cosine_similarity, normalize_vec
 class CentroidClassificationUtils(object):
 
     @staticmethod
-    def get_distance(x1, x2, triplet_similarity):
+    def get_distance(x1, x2, triplet_similarity, mode='numpy'):
         n_jobs = 8 if x1.shape[0] > 1 else 1
         is_item = False
         if isinstance(x1, np.ndarray):
@@ -53,6 +53,10 @@ class CentroidClassificationUtils(object):
                 x1 = x1.unsqueeze(0)
                 x2 = x2.unsqueeze(0)
                 is_item = True
+
+        if mode != 'numpy':
+            x1 = torch.FloatTensor(x1).to(mode)
+            x2 = torch.FloatTensor(x2).to(mode)
 
         # latest needed: conda install -c anaconda scikit-learn
         with sklearn.config_context(working_memory=1024):
@@ -71,14 +75,19 @@ class CentroidClassificationUtils(object):
                 else:
                     dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
+        if mode != 'numpy':
+            dist = dist.to('cpu').numpy()
+
         if is_item:
             dist = dist[0]
+
         return dist
 
 
-    # @type = 'range' 'closest'
+    # @type = ['range', 'closest']
+    # @mode = ['numpy', 'cuda', 'cpu']
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', class_max_dist=None, class_centroids=None, distances_precomputed=None):
+    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', mode='numpy', class_max_dist=None, class_centroids=None, distances_precomputed=None):
 
         class_centroids_noncomputed = {}
         for idx_emb, embedding in enumerate(embeddings):
@@ -100,7 +109,7 @@ class CentroidClassificationUtils(object):
                     class_centroids[key] = normalize_vec(class_centroids[key])
 
                 np_class_centroids_tiled = np.tile(class_centroids[key], (len(np_all_centroids),1))
-                list_dists = CentroidClassificationUtils.get_distance(np_class_centroids_tiled, np_all_centroids, triplet_similarity).tolist()
+                list_dists = CentroidClassificationUtils.get_distance(np_class_centroids_tiled, np_all_centroids, triplet_similarity, mode).tolist()
                 list_dists = sorted(list_dists, reverse=False)
                 list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
                 class_max_dist[key] = list_dists[-1] # last largest distance
@@ -122,7 +131,7 @@ class CentroidClassificationUtils(object):
                 logging.info(f'center calc: {y_idx} len: {len(list(class_max_dist.keys()))} / {len(embeddings)} sim: {triplet_similarity}')
                 # calculate if in range of some centroid other than real one
                 np_class_centroids_tiled = np.tile(y_embedding, (len(embeddings),1))
-                dists = CentroidClassificationUtils.get_distance(embeddings, np_class_centroids_tiled, triplet_similarity)
+                dists = CentroidClassificationUtils.get_distance(embeddings, np_class_centroids_tiled, triplet_similarity, mode)
                 distances_precomputed[y_idx] = dists
 
             if type == 'range':
