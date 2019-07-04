@@ -850,6 +850,8 @@ meters = dict(
     test_dist_negatives_hard = tnt.meter.AverageValueMeter(),
 )
 
+#torch.autograd.set_detect_anomaly(True)
+
 state_before_stopping = copy.deepcopy(state)
 for epoch in range(1, args.epochs_count + 1):
     state_before = copy.deepcopy(state)

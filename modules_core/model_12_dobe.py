@@ -257,7 +257,7 @@ class Model(torch.nn.Module):
         output_emb = self.layers_embedding.forward(output_enc)
 
         if self.args.embedding_function != 'none':
-            output_emb *= self.args.embedding_scale
+            output_emb = output_emb * self.args.embedding_scale
 
         output_norm = torch_utils.normalize_output(
             output_emb,
