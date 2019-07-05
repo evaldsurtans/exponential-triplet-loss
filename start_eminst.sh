@@ -14,9 +14,9 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -epochs_count 100 \
 -datasource_type eminst \
 -optimizer adam \
--params_grid learning_rate overlap_coef center_loss_coef pos_loss_coef center_loss_min_count \
+-params_grid overlap_coef center_loss_coef pos_loss_coef center_loss_min_count \
 -center_loss_min_count 300 100 \
--learning_rate 1e-4 3e-5 \
+-learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 2.0 1.0 \
@@ -24,7 +24,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -center_loss_coef 2.0 1.0 \
 -class_loss_coef 1.0 \
 -embedding_init zeros \
--overlap_coef 1.0 20.0 40.0 60.0 \
+-overlap_coef 30.0 20.0 40.0 \
 -embedding_norm unit_range \
 -embedding_scale 2.0 \
 -triplet_similarity euclidean \

@@ -8,15 +8,15 @@ cd ~/Documents/fassion_minst/
 
 python taskgen_linux.py -repeat 1 \
 -device cuda \
--report jul_4_model_12_dobe_exp13_eminst_OLD_x \
+-report jul_4_model_12_dobe_exp13_eminst_unit_c \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 100 \
+-epochs_count 20 \
 -datasource_type eminst \
 -optimizer adam \
--params_grid learning_rate overlap_coef center_loss_coef pos_loss_coef center_loss_min_count \
--center_loss_min_count 300 100 \
--learning_rate 1e-4 3e-5 \
+-params_grid overlap_coef center_loss_coef pos_loss_coef \
+-center_loss_min_count 100 \
+-learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 2.0 1.0 \
@@ -26,7 +26,7 @@ python taskgen_linux.py -repeat 1 \
 -embedding_init zeros \
 -overlap_coef 1.0 20.0 40.0 60.0 \
 -embedding_norm unit_range \
--embedding_scale 2.0 \
+-embedding_scale 1.0 \
 -triplet_similarity euclidean \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \

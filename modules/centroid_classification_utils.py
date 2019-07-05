@@ -117,6 +117,9 @@ class CentroidClassificationUtils(object):
         predicted = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
         target = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
 
+        if type != 'range':
+            predicted = np.ones_like(predicted) * 1e9
+
         def process_class(y_idx):
             y_embedding = class_centroids[y_idx]
             max_dist = class_max_dist[y_idx]
@@ -139,8 +142,7 @@ class CentroidClassificationUtils(object):
                     if max_dist > dist:
                         predicted[idx_emb][y_idx] += 1.0
             else:
-                idx_emb = np.argmin(dists)
-                predicted[idx_emb][y_idx] = 1.0
+                predicted[:,y_idx] = np.minimum(predicted[:,y_idx], dists[:]) # store for each class closest embedding with distance value
 
         for y_idx in class_max_dist.keys():
             process_class(y_idx)
@@ -148,6 +150,10 @@ class CentroidClassificationUtils(object):
         if type == 'range':
             # predicted sum can be 0 if none in the range
             predicted = predicted /(np.sum(predicted, axis=1, keepdims=True) + 1e-18)
+        else:
+            idx_class = np.argmin(predicted, axis=1) # for each sample select closest distance
+            predicted = np.zeros_like(predicted) # init probabilities vector
+            predicted[np.arange(predicted.shape[0]), idx_class] = 1.0 # for each sample set prob 100% by columns
 
         return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(y_list)), class_max_dist, class_centroids, distances_precomputed
 
