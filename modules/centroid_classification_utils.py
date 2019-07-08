@@ -131,7 +131,7 @@ class CentroidClassificationUtils(object):
                 distances_precomputed[y_idx] = {}
 
             if dists is None:
-                logging.info(f'center calc: {y_idx} len: {len(list(class_max_dist.keys()))} / {len(embeddings)} sim: {triplet_similarity}')
+                #logging.info(f'center calc: {y_idx} len: {len(list(class_max_dist.keys()))} / {len(embeddings)} sim: {triplet_similarity}')
                 # calculate if in range of some centroid other than real one
                 np_class_centroids_tiled = np.tile(y_embedding, (len(embeddings),1))
                 dists = CentroidClassificationUtils.get_distance(embeddings, np_class_centroids_tiled, triplet_similarity, mode)

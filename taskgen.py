@@ -389,8 +389,8 @@ for idx_comb, params_comb in enumerate(grid):
                         feature = ''
                         if que == 'batch':
                             walltime = 96
-                            if args.hpc_feautre_gpu == 'v100':
-                                args.conda_env = 'conda_tesla'
+                            #if args.hpc_feautre_gpu == 'v100':
+                            #    args.conda_env = 'conda_tesla'
                             feature = f',feature={args.hpc_feautre_gpu}'
                             #feature = ',feature=vasara-32'
 
@@ -409,6 +409,7 @@ for idx_comb, params_comb in enumerate(grid):
                     #if is_hpc_gpu:
                         #fp.write(f'module load cuda/cuda-8.0\n')
                     fp.write(f'module load conda\n')
+                    fp.write(f'eval "$(conda shell.bash hook)"\n')
                     fp.write(f'source activate {args.conda_env}\n')
 
                     if args.is_hpc_xvfb:

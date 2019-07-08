@@ -2,6 +2,7 @@
 
 module load conda
 export TMPDIR=$HOME/tmp
+eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
