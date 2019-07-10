@@ -8,7 +8,7 @@ cd ~/Documents/fassion_minst/
 
 python taskgen_linux.py -repeat 1 \
 -device cuda \
--report jul_4_model_12_dobe_exp13_eminst_unit_b \
+-report jul_10_model_12_dobe_exp13_eminst_unit_b \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 20 \

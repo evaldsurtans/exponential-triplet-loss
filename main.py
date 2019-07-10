@@ -78,7 +78,7 @@ parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (s
 parser.add_argument('-datasource_classes_train', default=0, type=int)
 
 parser.add_argument('-is_class_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-class_loss_coef', default=1e-1, type=float)
+parser.add_argument('-class_loss_coef', default=1.0, type=float)
 parser.add_argument('-class_loss_epochs_limit', default=0, type=float) # 0 unlimited
 
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
@@ -122,14 +122,14 @@ parser.add_argument('-slope_coef', default=3.0, type=float)
 parser.add_argument('-neg_coef', default=2.0, type=float)
 parser.add_argument('-pos_coef', default=3.0, type=float)
 
-parser.add_argument('-neg_loss_coef', default=0.0, type=float)
-parser.add_argument('-pos_loss_coef', default=0.0, type=float)
+parser.add_argument('-neg_loss_coef', default=1.0, type=float)
+parser.add_argument('-pos_loss_coef', default=1.0, type=float)
 
 parser.add_argument('-noise_training', default=0.0, type=float)
 
 parser.add_argument('-is_center_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-center_loss_min_count', default=500, type=int)
-parser.add_argument('-center_loss_coef', default=0.0, type=float)
+parser.add_argument('-center_loss_coef', default=1.0, type=float)
 
 parser.add_argument('-embedding_function', default='tanh', type=str)
 parser.add_argument('-embedding_size', default=256, type=int)
@@ -173,13 +173,17 @@ parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (s
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
-parser.add_argument('-max_embeddings_per_class_test', default=500, type=int)
-parser.add_argument('-max_embeddings_per_class_train', default=500, type=int)
+parser.add_argument('-max_embeddings_per_class_test', default=500, type=int) # 0 = unlimited
+parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 0 = unlimited
 
-parser.add_argument('-max_embeddings_projector_classes', default=50, type=int)
-parser.add_argument('-max_embeddings_projector_samples', default=200, type=int)
+parser.add_argument('-max_embeddings_projector_classes', default=50, type=int) # 0 = unlimited
+parser.add_argument('-max_embeddings_projector_samples', default=200, type=int) # 0 = unlimited
 
 args, args_other = parser.parse_known_args()
+
+# fail safe center loss
+if args.max_embeddings_per_class_train > 0:
+    args.center_loss_min_count = min(args.max_embeddings_per_class_train, args.center_loss_min_count)
 
 tmp = [
     'id',
@@ -723,7 +727,7 @@ def forward(batch, output_by_y, is_train):
         for idx, each_y in enumerate(list_y):
             if each_y in output_by_y.keys():
                 if each_y not in cached_centers_by_y.keys():
-                    if len(output_by_y[each_y]['embeddings']) > args.center_loss_min_count:
+                    if len(output_by_y[each_y]['embeddings']) >= args.center_loss_min_count:
                         cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
                         if args.embedding_norm == 'l2': #TODO unit_range
                             cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
