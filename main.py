@@ -78,7 +78,8 @@ parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (s
 parser.add_argument('-datasource_classes_train', default=0, type=int)
 
 parser.add_argument('-is_class_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
-parser.add_argument('-class_loss_coef', default=1e-1, type=float) # 0 means adapative coeficient
+parser.add_argument('-class_loss_coef', default=1e-1, type=float)
+parser.add_argument('-class_loss_epochs_limit', default=0, type=float) # 0 unlimited
 
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
@@ -341,6 +342,71 @@ if args.device == 'cuda' and torch.cuda.device_count() > 1:
     logging.info(f'PARALLEL MODEL {torch.cuda.device_count()}')
 
 model = model.to(args.device)
+
+
+state = {
+    'epoch': 0,
+    'learning_rate_dyn': args.learning_rate,
+    'best_param': -1,
+    'avg_epoch_time': -1,
+    'epoch_time': -1,
+    'early_stopping_patience': 0,
+    'early_percent_improvement': 0,
+    'train_loss': -1,
+    'test_loss': -1,
+    'train_loss_class': -1,
+    'test_loss_class': -1,
+    'train_loss_emb': -1,
+    'test_loss_emb': -1,
+    'train_loss_center': -1,
+    'test_loss_center': -1,
+    'train_loss_pos': -1,
+    'test_loss_pos': -1,
+    'train_loss_neg': -1,
+    'test_loss_neg': -1,
+    'test_acc_range': -1,
+    'best_acc_range': -1,
+    'train_acc_range': -1,
+    'test_auc_range': -1,
+    'train_auc_range': -1,
+    'test_acc_closest': -1,
+    'best_acc_closest': -1,
+    'train_acc_closest': -1,
+    'test_auc_closest': -1,
+    'train_auc_closest': -1,
+    'test_max_dist': -1,
+    'train_max_dist': -1,
+    'test_eer': -1,
+    'train_eer': -1,
+    'test_eer2': -1,
+    'train_eer2': -1,
+    'train_dist_positives': -1,
+    'train_dist_negatives': -1,
+    'test_dist_positives': -1,
+    'test_dist_negatives': -1,
+    'test_dist_delta': -1,
+    'train_dist_delta': -1,
+    'train_dist_positives_hard': -1,
+    'train_dist_negatives_hard': -1,
+    'test_dist_positives_hard': -1,
+    'test_dist_negatives_hard': -1,
+    'test_dist_delta_hard': -1,
+    'train_dist_delta_hard': -1,
+    'train_count_positives': -1,
+    'train_count_negatives': -1,
+    'test_count_positives': -1,
+    'test_count_negatives': -1,
+    'train_count_positives_all': -1,
+    'train_count_negatives_all': -1,
+    'test_count_positives_all': -1,
+    'test_count_negatives_all': -1,
+    'test_negative_max': -1,
+    'train_negative_max': -1,
+    'test_count_embeddings': -1,
+    'train_count_embeddings': -1
+}
+avg_time_epochs = []
+time_epoch = time.time()
 
 
 def get_optimizer(lr):
@@ -687,15 +753,16 @@ def forward(batch, output_by_y, is_train):
 
     loss_class = None
     if is_train and args.is_class_loss and args.class_loss_coef > 0:
-        if output_class is not None:
-            y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
-            tmp = torch.arange(args.datasource_classes_train).reshape(1, args.datasource_classes_train)
-            y_hot_enc = (y_hot_enc == tmp).float() # one hot encoded
-            y_hot_enc = y_hot_enc.detach().to(args.device)
+        if args.class_loss_epochs_limit == 0 or state['epoch'] < args.class_loss_epochs_limit:
+            if output_class is not None:
+                y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
+                tmp = torch.arange(args.datasource_classes_train).reshape(1, args.datasource_classes_train)
+                y_hot_enc = (y_hot_enc == tmp).float() # one hot encoded
+                y_hot_enc = y_hot_enc.detach().to(args.device)
 
-            loss_class = torch.mean(-y_hot_enc*torch.log(output_class))
-            loss_class = loss_class * args.class_loss_coef
-            loss += loss_class
+                loss_class = torch.mean(-y_hot_enc*torch.log(output_class))
+                loss_class = loss_class * args.class_loss_coef
+                loss += loss_class
 
     result = dict(
         output=output,
@@ -718,69 +785,6 @@ def prep_loss_for_stats(loss_val):
             loss_val = loss_val.item()
     return loss_val
 
-state = {
-    'epoch': 0,
-    'learning_rate_dyn': args.learning_rate,
-    'best_param': -1,
-    'avg_epoch_time': -1,
-    'epoch_time': -1,
-    'early_stopping_patience': 0,
-    'early_percent_improvement': 0,
-    'train_loss': -1,
-    'test_loss': -1,
-    'train_loss_class': -1,
-    'test_loss_class': -1,
-    'train_loss_emb': -1,
-    'test_loss_emb': -1,
-    'train_loss_center': -1,
-    'test_loss_center': -1,
-    'train_loss_pos': -1,
-    'test_loss_pos': -1,
-    'train_loss_neg': -1,
-    'test_loss_neg': -1,
-    'test_acc_range': -1,
-    'best_acc_range': -1,
-    'train_acc_range': -1,
-    'test_auc_range': -1,
-    'train_auc_range': -1,
-    'test_acc_closest': -1,
-    'best_acc_closest': -1,
-    'train_acc_closest': -1,
-    'test_auc_closest': -1,
-    'train_auc_closest': -1,
-    'test_max_dist': -1,
-    'train_max_dist': -1,
-    'test_eer': -1,
-    'train_eer': -1,
-    'test_eer2': -1,
-    'train_eer2': -1,
-    'train_dist_positives': -1,
-    'train_dist_negatives': -1,
-    'test_dist_positives': -1,
-    'test_dist_negatives': -1,
-    'test_dist_delta': -1,
-    'train_dist_delta': -1,
-    'train_dist_positives_hard': -1,
-    'train_dist_negatives_hard': -1,
-    'test_dist_positives_hard': -1,
-    'test_dist_negatives_hard': -1,
-    'test_dist_delta_hard': -1,
-    'train_dist_delta_hard': -1,
-    'train_count_positives': -1,
-    'train_count_negatives': -1,
-    'test_count_positives': -1,
-    'test_count_negatives': -1,
-    'train_count_positives_all': -1,
-    'train_count_negatives_all': -1,
-    'test_count_positives_all': -1,
-    'test_count_negatives_all': -1,
-    'test_negative_max': -1,
-    'train_negative_max': -1,
-    'test_count_embeddings': -1,
-    'train_count_embeddings': -1
-}
-avg_time_epochs = []
-time_epoch = time.time()
 
 CsvUtils.create_local(args)
 
@@ -953,9 +957,6 @@ for epoch in range(1, args.epochs_count + 1):
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 5:
                 break
-
-            if 0 in output_by_y.keys():
-                logging.info(f"debug: {len(output_by_y[0]['embeddings'])}")
 
         try:
 
