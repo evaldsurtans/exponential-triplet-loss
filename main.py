@@ -93,7 +93,7 @@ parser.add_argument('-datasource_workers', default=8, type=int) #8
 parser.add_argument('-datasource_type', default='cifar_10', type=str) # fassion_minst minst
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
-parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic
+parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic use whole dataset
 
 parser.add_argument('-epochs_count', default=20, type=int)
 
@@ -227,6 +227,8 @@ tmp = [
     'test_loss_neg',
     'train_loss_center',
     'test_loss_center',
+    'test_count_embeddings',
+    'train_count_embeddings',
     'learning_rate_dyn',
     'avg_epoch_time']
 if not args.params_report is None:
@@ -280,6 +282,8 @@ tmp = [
     'train_loss_center',
     'test_loss_center',
     'learning_rate_dyn',
+    'test_count_embeddings',
+    'train_count_embeddings',
     'epoch_time',
     'early_percent_improvement']
 if not args.params_report_local is None:
@@ -438,18 +442,8 @@ def forward(batch, output_by_y, is_train):
         loss_pos_inner = torch.mean(torch.clamp(pos_norm - C_norm, 0.0))
         loss_neg_inner = torch.mean(torch.clamp(0.5 - neg_norm, 0.0))
 
-        pos_loss_coef = args.pos_loss_coef
-        neg_loss_coef = args.neg_loss_coef
-
-        if pos_loss_coef == 0 and neg_loss_coef == 0:
-            # automatic balancing of coefs
-            if loss_pos_inner > 0:
-                # adaptive coeficient
-                pos_loss_coef = loss_neg_inner.detach() / loss_pos_inner.detach()
-                neg_loss_coef = 1.0
-
-        loss_pos = -torch.log(1.0 - (loss_pos_inner/(1.-C_norm)) + eps) * pos_loss_coef
-        loss_neg = -torch.log(1.0 - (loss_neg_inner/0.5) + eps) * neg_loss_coef
+        loss_pos = -torch.log(1.0 - (loss_pos_inner/(1.-C_norm)) + eps) * args.pos_loss_coef
+        loss_neg = -torch.log(1.0 - (loss_neg_inner/0.5) + eps) * args.neg_loss_coef
         loss = loss_pos + loss_neg
     elif args.triplet_loss == 'exp12':
         eps = 1e-20
@@ -653,7 +647,7 @@ def forward(batch, output_by_y, is_train):
 
     loss_emb = loss.detach().clone()
     loss_center = None
-    if args.is_center_loss:
+    if args.is_center_loss and args.center_loss_coef > 0:
         centers = []
         outputs_by_centers = []
         cached_centers_by_y = {}
@@ -688,17 +682,11 @@ def forward(batch, output_by_y, is_train):
                 else:
                     loss_center = torch.mean(torch.clamp(centers_dist - C_norm_center, 0.0))
 
-                center_loss_coef = args.center_loss_coef
-                if center_loss_coef <= 0.0:
-                    center_loss_coef = 0.0
-                    if loss_center > 0:
-                        # adaptive coeficient
-                        center_loss_coef = loss_emb.detach() / loss_center.detach()
-                loss_center = loss_center * center_loss_coef
+                loss_center = loss_center * args.center_loss_coef
                 loss += loss_center
 
     loss_class = None
-    if is_train and args.is_class_loss:
+    if is_train and args.is_class_loss and args.class_loss_coef > 0:
         if output_class is not None:
             y_hot_enc = y.to('cpu').reshape(y.size(0), 1)
             tmp = torch.arange(args.datasource_classes_train).reshape(1, args.datasource_classes_train)
@@ -706,13 +694,7 @@ def forward(batch, output_by_y, is_train):
             y_hot_enc = y_hot_enc.detach().to(args.device)
 
             loss_class = torch.mean(-y_hot_enc*torch.log(output_class))
-            class_loss_coef = args.class_loss_coef
-            if class_loss_coef <= 0.0:
-                class_loss_coef = 0.0
-                if loss_class > 0:
-                    # adaptive coeficient
-                    class_loss_coef = loss_emb.detach() / loss_class.detach()
-            loss_class = loss_class * class_loss_coef
+            loss_class = loss_class * args.class_loss_coef
             loss += loss_class
 
     result = dict(
@@ -794,6 +776,8 @@ state = {
     'test_count_negatives_all': -1,
     'test_negative_max': -1,
     'train_negative_max': -1,
+    'test_count_embeddings': -1,
+    'train_count_embeddings': -1
 }
 avg_time_epochs = []
 time_epoch = time.time()
@@ -853,6 +837,8 @@ meters = dict(
 )
 
 #torch.autograd.set_detect_anomaly(True)
+
+LoggingUtils.info(f'batch count train: {len(data_loader_train)} test: {len(data_loader_test)}')
 
 state_before_stopping = copy.deepcopy(state)
 for epoch in range(1, args.epochs_count + 1):
@@ -967,6 +953,9 @@ for epoch in range(1, args.epochs_count + 1):
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 5:
                 break
+
+            if 0 in output_by_y.keys():
+                logging.info(f"debug: {len(output_by_y[0]['embeddings'])}")
 
         try:
 
@@ -1108,6 +1097,11 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_acc_closest'] = meters[f'{meter_prefix}_acc_closest'].value()[0]
         fpr, tpr, eer = calc_err(meters[f'{meter_prefix}_auc_closest'])
         state[f'{meter_prefix}_eer2'] = eer
+
+        tmp_count = []
+        for key in output_by_y.keys():
+            tmp_count.append(len(output_by_y[key]['embeddings']))
+        state[f'{meter_prefix}_count_embeddings'] = np.median(tmp_count)
 
         if meters[f'{meter_prefix}_loss'].n > 0:
             state[f'{meter_prefix}_loss'] = meters[f'{meter_prefix}_loss'].value()[0]

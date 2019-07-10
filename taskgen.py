@@ -351,7 +351,7 @@ for idx_comb, params_comb in enumerate(grid):
 
 
         each_task_line_end = ''
-        if max_process_per_task > 1:
+        if max_process_per_task > 1 and not args.single_task:
             if not is_windows:
                 each_task_line_end = '&'
 

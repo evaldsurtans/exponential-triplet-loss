@@ -8,17 +8,17 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_1_model_12_dobe_exp13_cifar_100_unit \
+-report jul_10_model_12_dobe_exp13_cifar_100_resnet18 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 200 \
 -datasource_type cifar_100 \
 -early_stopping_delta_percent 1e-4 \
 -optimizer adam \
--params_grid learning_rate overlap_coef center_loss_coef pos_loss_coef embedding_layers embedding_scale \
+-params_grid overlap_coef center_loss_coef pos_loss_coef embedding_layers embedding_scale \
 -center_loss_min_count 300 \
 -datasource_is_grayscale False \
--learning_rate 1e-4 5e-5 1e-5 \
+-learning_rate 5e-5 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 2.0 1.0 \
@@ -37,7 +37,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet161 \
+-model_encoder resnet18 \
 -embedding_size 128 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
@@ -71,7 +71,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -datasource datasource_pytorch \
 -is_hpc True \
 -is_quick_test False \
--single_task False
+-single_task True
 
 
 # euclidean unit_range

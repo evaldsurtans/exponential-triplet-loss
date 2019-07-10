@@ -141,7 +141,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
         self.size_samples = 0
         for idx, group in enumerate(groups):
             samples = group['samples']
-            self.size_samples += int(len(samples) / self.args.triplet_positives)
+            self.size_samples += len(samples)
         self.groups = groups
 
         # for debugging purposes
@@ -150,7 +150,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             logging.info(f'debugging: reduced data size {self.args.datasource_size_samples}')
             self.size_samples = self.args.datasource_size_samples
 
-        logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total: {self.size_samples}')
+        logging.info(f'{self.args.datasource_type} {"test" if is_test_data else "train"}: classes: {len(groups)} total triplets: {self.size_samples}')
 
         if not is_test_data:
             self.args.datasource_classes_train = len(groups) # override class count
@@ -166,6 +166,8 @@ class Dataset(torch.utils.data.dataset.Dataset):
         for idx, group in enumerate(self.groups):
             samples = group['samples']
             random.shuffle(samples)
+
+        logging.info(f'{"test" if self.is_test_data else "train"} size_samples_raw: {self.size_samples}')
 
         idx_group = 0
         count_sample_batches = int(self.size_samples / self.args.batch_size)
@@ -187,7 +189,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
             if idx_group >= len(self.groups):
                 idx_group = 0
 
-        logging.info(f'{"test" if self.is_test_data else "train"} size_samples: {len(self.samples)}')
+        logging.info(f'{"test" if self.is_test_data else "train"} size_samples: {len(self.samples)} {self.size_samples}')
         # logging.info(f'idx_group: {idx_group}')
         # for idx, group in enumerate(groups):
         #     logging.info(f'group: {idx} counter: {group["counter"]}')
