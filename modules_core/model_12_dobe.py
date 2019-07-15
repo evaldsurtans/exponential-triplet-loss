@@ -149,10 +149,24 @@ class Model(torch.nn.Module):
 
         if self.args.datasource_classes_train:
             logging.info(f'classification layer classes count: {self.args.datasource_classes_train}')
-            self.layers_classification = torch.nn.Sequential(
-                torch.nn.BatchNorm1d(num_features=self.args.embedding_size),
-                torch.nn.Linear(in_features=self.args.embedding_size, out_features=self.args.datasource_classes_train),
+            layers_classification = []
+            layers_emb_size = self.args.embedding_size
+
+            for idx in range(self.args.class_layers - 1):
+                layers_classification += [
+                    torch.nn.BatchNorm1d(num_features=layers_emb_size),
+                    torch.nn.Linear(in_features=layers_emb_size, out_features=self.args.class_layers_hidden)
+                ]
+                layers_emb_size = self.args.class_layers_hidden
+
+            layers_classification += [
+                torch.nn.BatchNorm1d(num_features=layers_emb_size),
+                torch.nn.Linear(in_features=layers_emb_size, out_features=self.args.datasource_classes_train),
                 torch.nn.Softmax(dim=1)
+            ]
+
+            self.layers_classification = torch.nn.Sequential(
+                *layers_classification
             )
 
         torch_utils.init_parameters(self.layers_embedding)

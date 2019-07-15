@@ -80,6 +80,8 @@ parser.add_argument('-datasource_classes_train', default=0, type=int)
 parser.add_argument('-is_class_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-class_loss_coef', default=1.0, type=float)
 parser.add_argument('-class_loss_epochs_limit', default=0, type=float) # 0 unlimited
+parser.add_argument('-class_layers', default=1, type=int)
+parser.add_argument('-class_layers_hidden', default=512, type=int)
 
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
@@ -164,9 +166,9 @@ parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add
 parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str) #kaf maxout relu lin
 parser.add_argument('-suffix_affine_layers_hidden_params', default=8, type=int)
 
-parser.add_argument('-early_stopping_patience', default=3, type=int)
-parser.add_argument('-early_stopping_param', default='test_loss', type=str)
-parser.add_argument('-early_stopping_param_coef', default=-1.0, type=float)
+parser.add_argument('-early_stopping_patience', default=5, type=int)
+parser.add_argument('-early_stopping_param', default='test_acc_closest', type=str)
+parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
 parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))

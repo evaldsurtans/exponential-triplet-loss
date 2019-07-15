@@ -9,24 +9,24 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_10_model_12_dobe_exp13_eminst \
+-report jul_15_model_12_dobe_exp13_eminst_reid \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type eminst \
 -optimizer adam \
--params_grid overlap_coef center_loss_coef pos_loss_coef class_loss_epochs_limit \
--center_loss_min_count 100 \
+-params_grid overlap_coef class_loss_coef pos_loss_coef neg_loss_coef class_loss_epochs_limit \
+-center_loss_min_count 50 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 2.0 1.0 \
--neg_loss_coef 1.0 \
--center_loss_coef 2.0 1.0 5.0 \
--class_loss_coef 1.0 \
--embedding_init zeros \
+-neg_loss_coef 1.0 2.0 \
+-center_loss_coef 1.0 \
+-class_loss_coef 1.0 2.0 \
+-embedding_init uniform \
 -class_loss_epochs_limit 5 10 0 \
--overlap_coef 1.0 30.0 20.0 40.0 \
+-overlap_coef 1.0 1.5 0.5 20.0 \
 -embedding_norm unit_range \
 -embedding_scale 2.0 \
 -triplet_similarity euclidean \
