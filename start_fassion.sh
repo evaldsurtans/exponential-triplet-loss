@@ -3,7 +3,7 @@
 module load conda
 export TMPDIR=$HOME/tmp
 source activate conda_env
-cd ~/Documents/fassion_minst/
+cd ~/Documents/fassion_mnist/
 
 
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
@@ -12,7 +12,7 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
--datasource_type fassion_minst \
+-datasource_type fassion_mnist \
 -optimizer adam \
 -params_grid overlap_coef layers_embedding_dropout \
 -center_loss_min_count 500 \

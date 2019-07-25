@@ -75,6 +75,9 @@ class CentroidClassificationUtils(object):
                 else:
                     dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
+                if triplet_similarity == 'euclidean_2':
+                    dist = dist ** 2
+
         if mode != 'numpy':
             dist = dist.to('cpu').numpy()
 

@@ -3,7 +3,7 @@
 module load conda
 export TMPDIR=$HOME/tmp
 source activate conda_env
-cd ~/Documents/fassion_minst/
+cd ~/Documents/fassion_mnist/
 
 
 # repeat

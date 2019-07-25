@@ -3,27 +3,30 @@
 module load conda
 export TMPDIR=$HOME/tmp
 source activate conda_env
-cd ~/Documents/fassion_minst/
+cd ~/Documents/fassion_mnist/
 
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_4_model_12_dobe_exp13_eminst_std_128 \
+python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report jun_6_model_12_dobe_exp13_mnist_fix_emb_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
--datasource_type eminst \
+-datasource_type mnist \
 -optimizer adam \
--params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss \
--learning_rate 1e-4 1e-3 3e-4 \
--is_center_loss True False \
--is_class_loss False True \
--triplet_sampler_var hard semi_hard \
--triplet_loss_margin 0.2 2.0 5.0 \
+-params_grid overlap_coef embedding_layers layers_embedding_dropout \
+-learning_rate 1e-4 \
+-is_center_loss True \
+-is_class_loss True \
+-pos_loss_coef 1.0 \
+-neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
--class_loss_coef 1.0 \
--overlap_coef 1.7 \
--layers_embedding_type last \
+-class_loss_coef 0.0 \
+-overlap_coef 0.8 1.0 1.2 1.5 \
+-layers_embedding_dropout 0.5 0.0 0.8 \
+-layers_embedding_type lin \
+-embedding_layers 1 2 \
+-embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
@@ -35,10 +38,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
--triplet_loss standard \
--embedding_layers 0 \
+-triplet_loss exp13 \
 -embedding_layers_hidden_func relu \
--embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
 -embedding_size 128 \
 -embedding_function tanh \
@@ -49,6 +50,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -conv_resnet_layers 4 \
 -conv_resnet_sub_layers 3 \
 -is_conv_max_pool False \
+-triplet_sampler_var hard \
 -is_kl_loss False \
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
@@ -57,7 +59,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -triplet_similarity euclidean \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
--triplet_sampler triplet_sampler_4  \
+-triplet_loss_margin 0.2 \
+-triplet_sampler triplet_sampler_5_zipper  \
 -model model_12_dobe \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \

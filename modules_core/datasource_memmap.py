@@ -33,6 +33,7 @@ from modules.file_utils import FileUtils
 from modules.dict_to_obj import DictToObj
 from distutils.dir_util import copy_tree
 
+# datasource for VGGFace2 and other memmap pre-processed data-sets
 
 class Dataset(torch.utils.data.dataset.Dataset):
     def __init__(self, args, is_test_data):
@@ -40,77 +41,34 @@ class Dataset(torch.utils.data.dataset.Dataset):
 
         self.args = args
         self.is_test_data = is_test_data
+        base_name = 'train'
+        if self.is_test_data:
+            base_name = 'test'
 
-        path_data = f'{self.args.path_data}/{self.args.datasource_type}'
-        FileUtils.createDir(path_data)
+        # debug
+        base_name = 'test'
+        # json.dump({
+        #         'class_names': class_names,
+        #         'mmap_shape': mmap_shape,
+        #         'samples_by_class_idxes': samples_by_class_idxes
+        #     }, fp, indent=4)
+        with open(f'{args.datasource_path_memmaps}/{base_name}.json', 'r') as fp:
+            self.data_desc = json.load(fp)
 
-        if not os.path.exists(f'{self.args.path_data}/{self.args.datasource_type}/lock'):
-            with open(f'{self.args.path_data}/{self.args.datasource_type}/lock', 'w') as fp_download_lock:
-                fp_download_lock.write('')
-            time.sleep(1.0)
+        self.mem = np.memmap(
+            f'{args.datasource_path_memmaps}/{base_name}.mmap',
+            mode='r',
+            dtype=np.float16,
+            shape=tuple(self.data_desc['mmap_shape']))
 
-        with open(f'{self.args.path_data}/{self.args.datasource_type}/lock', 'r+') as fp_download_lock:
-            FileUtils.lock_file(fp_download_lock)
-
-            transform_colors = torchvision.transforms.ToTensor()
-            if self.args.datasource_is_grayscale:
-                transform_colors = torchvision.transforms.Compose([
-                        torchvision.transforms.Grayscale(),
-                        torchvision.transforms.ToTensor()
-                    ])
-
-            if self.args.datasource_type == 'fassion_mnist':
-                self.dataset = torchvision.datasets.FashionMNIST(
-                    path_data,
-                    download=True,
-                    train=not is_test_data,
-                    transform=torchvision.transforms.ToTensor()
-                )
-            elif self.args.datasource_type == 'mnist':
-                self.dataset = torchvision.datasets.MNIST(
-                    path_data,
-                    download=True,
-                    train=not is_test_data,
-                    transform=torchvision.transforms.ToTensor()
-                )
-            elif self.args.datasource_type == 'cifar_10':
-
-                self.dataset = torchvision.datasets.CIFAR10(
-                    path_data,
-                    download=True,
-                    train=not is_test_data,
-                    transform=transform_colors
-                )
-            elif self.args.datasource_type == 'cifar_100':
-                self.dataset = torchvision.datasets.CIFAR100(
-                    path_data,
-                    download=True,
-                    train=not is_test_data,
-                    transform=transform_colors
-                )
-            elif self.args.datasource_type == 'emnist': # extended mnist https://arxiv.org/pdf/1702.05373.pdf
-                self.dataset = torchvision.datasets.EMNIST(
-                    path_data,
-                    download=True,
-                    split='balanced',
-                    train=not is_test_data,
-                    transform=torchvision.transforms.Compose([
-                        lambda img: torchvision.transforms.functional.rotate(img, -90),
-                        lambda img: torchvision.transforms.functional.hflip(img),
-                        torchvision.transforms.ToTensor()
-                    ])
-                )
-
-            FileUtils.unlock_file(fp_download_lock)
-
-        self.classes = np.arange(np.array(self.dataset.targets).max() + 1).tolist()
+        self.classes = np.arange(len(self.data_desc['class_names'])).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
-        for img, label_idx in self.dataset:
-            groups[int(label_idx)]['samples'].append(img)
+        for sample_idx, label_idx in enumerate(self.data_desc['samples_by_class_idxes']):
+            groups[int(label_idx)]['samples'].append(sample_idx)
 
-        args.input_size = img.size(1) # channels, w, h
-        args.input_features = img.size(0)
+        args.input_size = self.data_desc['mmap_shape'][2]
+        args.input_features = self.data_desc['mmap_shape'][1]
 
         if not is_test_data:
             ids = [int(it) for it in self.args.datasource_exclude_train_class_ids]
@@ -180,17 +138,14 @@ class Dataset(torch.utils.data.dataset.Dataset):
                 idx_group = 0
 
         logging.info(f'{"test" if self.is_test_data else "train"} size_samples: {len(self.samples)} {self.size_samples}')
-        # logging.info(f'idx_group: {idx_group}')
-        # for idx, group in enumerate(groups):
-        #     logging.info(f'group: {idx} counter: {group["counter"]}')
 
-    # 28x28
     def __getitem__(self, index):
-        return self.samples[index]
+        idx_class = self.samples[index][0]
+        idx_sample = self.samples[index][1]
+        return idx_class, torch.FloatTensor(self.mem[idx_sample])
 
     def __len__(self):
         return self.size_samples
-
 
 def get_data_loaders(args):
 

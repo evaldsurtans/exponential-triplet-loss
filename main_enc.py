@@ -66,7 +66,7 @@ parser.add_argument('-datasource', default='datasource_pytorch', type=str)
 parser.add_argument('-triplet_positives', default=1, type=int) # in order to use same datasource as for triplet loss
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='minst', type=str) # fassion_minst minst
+parser.add_argument('-datasource_type', default='mnist', type=str) # fassion_mnist mnist
 
 parser.add_argument('-epochs_count', default=10, type=int)
 

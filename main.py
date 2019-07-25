@@ -86,14 +86,15 @@ parser.add_argument('-class_layers_hidden', default=512, type=int)
 parser.add_argument('-triplet_sampler', default='triplet_sampler_4', type=str)
 parser.add_argument('-triplet_sampler_var', default='hard', type=str) # hard, all
 parser.add_argument('-filter_samples', nargs='*', default=['none']) # abs_margin semi_hard hard
-parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean
+parser.add_argument('-triplet_similarity', default='cos', type=str) # cos euclidean euclidean_2
 
 parser.add_argument('-embedding_norm', default='unit_range', type=str) #unit_range l2 none
 parser.add_argument('-embedding_scale', default=1.0, type=float) #l2-softmax
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='cifar_10', type=str) # fassion_minst minst
+parser.add_argument('-datasource_type', default='cifar_10', type=str) # fassion_mnist mnist, vggface2
+parser.add_argument('-datasource_path_memmaps', default='/Users/evalds/Downloads/vggface2', type=str)
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_size_samples', default=0, type=int) # 0 automatic use whole dataset
@@ -164,7 +165,7 @@ parser.add_argument('-leaky_relu_slope', default=0.1, type=float)
 parser.add_argument('-conv_unet', default='unet_add', type=str) # none, unet_add, unet_cat
 
 parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=str) #kaf maxout relu lin
-parser.add_argument('-suffix_affine_layers_hidden_params', default=8, type=int)
+parser.add_argument('-suffix_affine_layers_hidden_params', default=4, type=int)
 
 parser.add_argument('-early_stopping_patience', default=5, type=int)
 parser.add_argument('-early_stopping_param', default='test_acc_closest', type=str)
@@ -483,6 +484,8 @@ def forward(batch, output_by_y, is_train):
     max_distance = 2.0 # cos
     if args.triplet_similarity != 'cos': # euclidean
         max_distance *= args.embedding_scale
+        if args.triplet_similarity == 'euclidean_2': # euclidean
+            max_distance = max_distance ** 2
 
     if args.is_triplet_loss_margin_auto:
         margin_distance = args.overlap_coef * max_distance / args.datasource_classes_train
@@ -745,6 +748,9 @@ def forward(batch, output_by_y, is_train):
                 centers_dist = 1. - F.cosine_similarity(centers, outputs_by_centers, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
             else:
                 centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
+
+            if args.triplet_similarity == 'euclidean_2':
+                centers_dist = centers_dist ** 2
 
             if args.is_center_loss:
                 if args.triplet_loss == 'exp13':

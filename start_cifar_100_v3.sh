@@ -4,41 +4,43 @@ module load conda
 export TMPDIR=$HOME/tmp
 eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_minst/
-
+cd ~/Documents/fassion_mnist/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_15_model_12_dobe_exp13_eminst_reid \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report jul_18_model_12_dobe_exp13_cifar_100_512 \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 100 \
--datasource_type eminst \
+-epochs_count 200 \
+-datasource_type cifar_100 \
+-early_stopping_delta_percent 1e-2 \
 -optimizer adam \
--params_grid overlap_coef class_loss_coef pos_loss_coef neg_loss_coef class_loss_epochs_limit \
+-params_grid overlap_coef class_loss_epochs_limit learning_rate suffix_affine_layers_hidden_params \
 -center_loss_min_count 50 \
--learning_rate 1e-4 \
--is_center_loss True \
--is_class_loss True \
--pos_loss_coef 2.0 1.0 \
--neg_loss_coef 1.0 2.0 \
+-class_loss_epochs_limit 100 50 \
+-suffix_affine_layers_hidden_params 16 4 2 \
+-datasource_is_grayscale False \
+-learning_rate 1e-5 1e-4 \
+-class_layers 1 \
+-pos_loss_coef 2.0 \
+-neg_loss_coef 4.0 \
 -center_loss_coef 1.0 \
--class_loss_coef 1.0 2.0 \
+-class_loss_coef 2.0 \
 -embedding_init uniform \
--class_loss_epochs_limit 5 10 0 \
--overlap_coef 1.0 1.5 0.5 20.0 \
+-overlap_coef 1.0 1.5 20.0 \
 -embedding_norm unit_range \
--embedding_scale 2.0 \
+-embedding_scale 1.0 \
+-is_center_loss True \
+-is_class_loss False \
 -triplet_similarity euclidean \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -embedding_layers_hidden 512 \
--suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
 -model_encoder densenet161 \
--embedding_size 128 \
+-embedding_size 512 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \
@@ -72,15 +74,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -is_hpc True \
 -is_quick_test False \
 -single_task False
-
-
-# euclidean unit_range
-# cos l2
-# exp8
-
-# -triplet_loss exp1 standard standard2 lossless lifted lifted2 \
-# speaker_small_male_4000_log_dual_13
-# speaker_small_female_4000_log_dual_13
 
 
 

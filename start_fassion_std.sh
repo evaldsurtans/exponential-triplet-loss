@@ -3,7 +3,7 @@
 module load conda
 export TMPDIR=$HOME/tmp
 source activate conda_env
-cd ~/Documents/fassion_minst/
+cd ~/Documents/fassion_mnist/
 
 
 # EXTEND TESTS after bugfix is_center_loss True
@@ -13,7 +13,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
--datasource_type fassion_minst \
+-datasource_type fassion_mnist \
 -optimizer adam \
 -params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss \
 -learning_rate 1e-4 1e-3 3e-4 \

@@ -54,6 +54,9 @@ class TripletSampler(object):
             else:
                 distances = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
+                if self.args.triplet_similarity == 'euclidean_2':
+                    distances = distances ** 2
+
             distances_batch.append(distances)
 
         return torch.stack(distances_batch)

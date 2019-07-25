@@ -2,31 +2,37 @@
 
 module load conda
 export TMPDIR=$HOME/tmp
+eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_minst/
+cd ~/Documents/fassion_mnist/
 
 
-python taskgen_linux.py -repeat 1 \
--device cuda \
--report jul_4_model_12_dobe_exp13_eminst_unit_c \
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report jul_16_model_12_dobe_exp13_emnist_uniform_redi \
 -batch_size 33 \
 -triplet_positives 3 \
--epochs_count 20 \
--datasource_type eminst \
+-epochs_count 100 \
+-datasource_type emnist \
 -optimizer adam \
--params_grid overlap_coef center_loss_coef pos_loss_coef \
+-datasource_exclude_train_class_ids 20 21 22 23 24 10 11 \
+-datasource_include_test_class_ids 20 21 22 23 24 10 11 \
+-params_grid overlap_coef class_loss_coef pos_loss_coef center_loss_coef class_layers \
 -center_loss_min_count 100 \
 -learning_rate 1e-4 \
+-class_layers 1 2 \
 -is_center_loss True \
 -is_class_loss True \
+-class_layers 1 2 \
 -pos_loss_coef 2.0 1.0 \
--neg_loss_coef 1.0 \
--center_loss_coef 2.0 1.0 \
--class_loss_coef 1.0 \
--embedding_init zeros \
--overlap_coef 1.0 20.0 40.0 60.0 \
+-neg_loss_coef 4.0 \
+-center_loss_coef 1.0 0.5 \
+-class_loss_coef 2.0 1.0 \
+-embedding_init uniform \
+-class_loss_epochs_limit 5 \
+-overlap_coef 1.0 1.5 0.5 20.0 \
 -embedding_norm unit_range \
--embedding_scale 1.0 \
+-embedding_scale 2.0 \
 -triplet_similarity euclidean \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
@@ -67,20 +73,9 @@ python taskgen_linux.py -repeat 1 \
 -model model_12_dobe \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \
--is_hpc False \
--is_single_cuda_device True \
--local_process_count_per_task 8 \
--single_task False \
--is_quick_test False
-
-
-# euclidean unit_range
-# cos l2
-# exp8
-
-# -triplet_loss exp1 standard standard2 lossless lifted lifted2 \
-# speaker_small_male_4000_log_dual_13
-# speaker_small_female_4000_log_dual_13
+-is_hpc True \
+-is_quick_test False \
+-single_task False
 
 
 

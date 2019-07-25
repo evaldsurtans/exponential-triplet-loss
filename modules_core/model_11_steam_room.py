@@ -139,7 +139,7 @@ class Model(torch.nn.Module):
 
         if self.args.model_encoder.startswith('resnet'):
 
-            if self.args.input_features != model_pretrained.conv1.in_channels:
+            if self.neg_loss_coef != model_pretrained.conv1.in_channels:
                 weight_conv1_pretrained = model_pretrained.conv1.weight.data
                 model_pretrained.conv1 = torch.nn.Conv2d(self.args.input_features, 64, kernel_size=7, stride=2, padding=3, bias=False)
 
