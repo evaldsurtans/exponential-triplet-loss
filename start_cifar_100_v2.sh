@@ -3,7 +3,7 @@
 module load conda
 export TMPDIR=$HOME/tmp
 eval "$(conda shell.bash hook)"
-source activate conda_env
+conda activate conda_env
 cd ~/Documents/fassion_mnist/
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \

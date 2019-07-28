@@ -9,26 +9,27 @@ cd ~/Documents/fassion_minst/
 # embedding_init
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_28_model_12_dobe_exp13_cifar_100_batches \
--batch_size 99 \
+-report jul_28_model_12_dobe_exp13_vggface_tmp \
+-batch_size 66 99 \
 -triplet_positives 3 \
 -epochs_count 100 \
--datasource_type cifar_100 \
+-datasource datasource_memmap \
+-datasource_max_class_count 500 \
+-datasource_is_grayscale True \
+-datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
 -early_stopping_delta_percent 1e-3 \
--early_stopping_patience 10 \
 -optimizer adam \
--params_grid overlap_coef datasource_is_grayscale class_loss_epochs_limit \
+-params_grid overlap_coef learning_rate batch_size \
 -center_loss_min_count 50 \
--class_loss_epochs_limit 50 100 200 \
--datasource_is_grayscale False True \
--learning_rate 1e-5 \
+-class_loss_epochs_limit 50 \
+-learning_rate 1e-5 1e-4 \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 4.0 \
 -center_loss_coef 1.0 \
 -class_loss_coef 2.0 \
--embedding_init xavier \
--overlap_coef 1.5 1.0 \
+-embedding_init uniform \
+-overlap_coef 1.5 20.0 100.0 \
 -triplet_similarity euclidean \
 -embedding_norm unit_range \
 -embedding_scale 1.0 \
@@ -72,7 +73,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -triplet_sampler triplet_sampler_4 \
 -model model_12_dobe \
 -is_pre_grad_locked False \
--datasource datasource_pytorch \
 -is_hpc True \
 -is_quick_test False \
 -single_task False

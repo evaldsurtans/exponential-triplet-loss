@@ -76,6 +76,7 @@ parser.add_argument('-unet_preloaded_pooling_size', default=1, type=int)
 parser.add_argument('-datasource', default='datasource_pytorch', type=str)
 parser.add_argument('-datasource_is_grayscale', default=False, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-datasource_classes_train', default=0, type=int)
+parser.add_argument('-datasource_max_class_count', default=0, type=int)
 
 parser.add_argument('-is_class_loss', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-class_loss_coef', default=1.0, type=float)
@@ -421,19 +422,19 @@ def get_optimizer(lr):
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             model.parameters(),
-            lr=args.learning_rate,
+            lr=lr,
             weight_decay=args.weight_decay
         )
     elif args.optimizer == 'rmsprop':
         optimizer = torch.optim.RMSprop(
             model.parameters(),
-            lr=args.learning_rate,
+            lr=lr,
             weight_decay=args.weight_decay
         )
     elif args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(
             model.parameters(),
-            lr=args.learning_rate,
+            lr=lr,
             momentum=0.9,
             weight_decay=args.weight_decay
         )

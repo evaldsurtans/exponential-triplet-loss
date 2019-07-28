@@ -61,14 +61,21 @@ class Dataset(torch.utils.data.dataset.Dataset):
             dtype=np.float16,
             shape=tuple(self.data_desc['mmap_shape']))
 
-        self.classes = np.arange(len(self.data_desc['class_names'])).tolist()
+        if self.args.datasource_max_class_count == 0:
+            self.classes = np.arange(len(self.data_desc['class_names'])).tolist()
+        else:
+            self.classes = np.arange(min(self.args.datasource_max_class_count, len(self.data_desc['class_names']))).tolist()
         groups = [{ 'samples': [], 'counter': 0 } for _ in self.classes]
 
         for sample_idx, label_idx in enumerate(self.data_desc['samples_by_class_idxes']):
-            groups[int(label_idx)]['samples'].append(sample_idx)
+            if int(label_idx) < len(self.classes):
+                groups[int(label_idx)]['samples'].append(sample_idx)
 
         args.input_size = self.data_desc['mmap_shape'][2]
         args.input_features = self.data_desc['mmap_shape'][1]
+
+        if self.args.datasource_is_grayscale:
+            args.input_features = 1
 
         if not is_test_data:
             ids = [int(it) for it in self.args.datasource_exclude_train_class_ids]
@@ -142,7 +149,12 @@ class Dataset(torch.utils.data.dataset.Dataset):
     def __getitem__(self, index):
         idx_class = self.samples[index][0]
         idx_sample = self.samples[index][1]
-        return idx_class, torch.FloatTensor(self.mem[idx_sample])
+        sample = torch.FloatTensor(self.mem[idx_sample])
+        if self.args.datasource_is_grayscale:
+            sample = 0.2989 * sample[0, :] + 0.5870 * sample[1, :] + 0.1140 * sample[2, :]
+            sample = sample.unsqueeze(0)
+            # 0.2989 * R + 0.5870 * G + 0.1140 * B
+        return idx_class, sample
 
     def __len__(self):
         return self.size_samples
