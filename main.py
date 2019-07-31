@@ -440,6 +440,7 @@ def get_optimizer(lr):
         )
     return optimizer
 
+is_class_loss_on = False
 optimizer_func = get_optimizer(args.learning_rate)
 
 def calc_err(meter):
@@ -776,6 +777,12 @@ def forward(batch, output_by_y, is_train):
                 loss_class = torch.mean(-y_hot_enc*torch.log(output_class))
                 loss_class = loss_class * args.class_loss_coef
                 loss += loss_class
+                is_class_loss_on = True
+        else:
+            if is_class_loss_on:
+                is_class_loss_on = False
+                # reset optimizer when dropping class loss
+                optimizer_func = get_optimizer(args.learning_rate)
 
     result = dict(
         output=output,
