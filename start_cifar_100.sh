@@ -6,28 +6,31 @@ eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
+# embedding_size
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_31_model_12_dobe_exp13_cifar_100 \
--batch_size 99 180 \
+-report aug_12_model_12_dobe_exp13_cifar_100 \
+-batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 200 \
 -datasource_type cifar_100 \
 -early_stopping_delta_percent 1e-3 \
 -early_stopping_patience 10 \
 -optimizer adam \
--params_grid overlap_coef class_loss_epochs_limit batch_size \
+-params_grid class_loss_coef weight_decay datasource_is_grayscale \
 -center_loss_min_count 50 \
--class_loss_epochs_limit 0 50 100 200 \
--datasource_is_grayscale True \
--learning_rate 1e-5 \
+-class_loss_epochs_limit 0 \
+-learning_rate 3e-5 \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
--neg_loss_coef 4.0 \
+-neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
--class_loss_coef 2.0 \
+-class_loss_coef 0.0 1.0 \
+-datasource_is_grayscale False True \
+-embedding_size 128 \
+-weight_decay 0 1e-5 1e-6 \
 -embedding_init xavier \
--overlap_coef 1.5 1.0 0.5 \
+-overlap_coef 1.5 \
 -triplet_similarity euclidean \
 -embedding_norm unit_range \
 -embedding_scale 1.0 \
@@ -41,7 +44,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -suffix_affine_layers_hidden_params 4 \
 -is_model_encoder_pretrained True \
 -model_encoder densenet161 \
--embedding_size 128 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \

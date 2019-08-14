@@ -4,40 +4,46 @@ module load conda
 export TMPDIR=$HOME/tmp
 eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_mnist/
+cd ~/Documents/fassion_minst/
 
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_15_model_12_dobe_exp13_emnist_x \
+-report aug_14_model_12_dobe_exp13_emnist_x \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type emnist \
 -optimizer adam \
--params_grid overlap_coef class_loss_coef pos_loss_coef neg_loss_coef class_loss_epochs_limit \
--center_loss_min_count 50 \
--learning_rate 1e-4 \
+-params_grid class_loss_coef center_loss_coef \
+-embedding_init xavier \
+-center_loss_min_count 500 \
+-learning_rate 1e-4 1e-5 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 2.0 1.0 \
--neg_loss_coef 1.0 2.0 \
--center_loss_coef 1.0 \
--class_loss_coef 1.0 2.0 \
--embedding_init uniform \
--class_loss_epochs_limit 5 10 0 \
--overlap_coef 1.0 1.5 0.5 20.0 \
--embedding_norm unit_range \
--embedding_scale 2.0 \
--triplet_similarity euclidean \
+-pos_loss_coef 1.0 \
+-neg_loss_coef 1.0 \
+-center_loss_coef 1.0 0.1 \
+-class_loss_coef 0.0 1.0 \
+-overlap_coef 1.5 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
--embedding_layers_hidden 512 \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet161 \
+-model_encoder densenet121 \
+-embedding_layers_last_norm none \
+-max_embeddings_per_class_test 0 \
+-max_embeddings_per_class_train 0 \
+-max_embeddings_histograms 0 \
+-slope_coef 1.0 \
+-pos_coef 0.0 \
+-neg_coef 0.0 \
+-triplet_loss exp13 \
+-embedding_layers_hidden_func relu \
+-embedding_layers_hidden 1024 \
+-leaky_relu_slope 0.01 \
 -embedding_size 128 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \

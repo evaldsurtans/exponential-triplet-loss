@@ -9,32 +9,33 @@ cd ~/Documents/fassion_minst/
 # embedding_init
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report jul_31_model_12_dobe_exp13_vggface \
--batch_size 66 120 33 \
+-report aug_13_model_12_dobe_exp13_vggface_full \
+-batch_size 33 \
 -triplet_positives 3 \
--epochs_count 200 \
+-epochs_count 300 \
 -datasource datasource_memmap \
--datasource_max_class_count 500 1000 2000 \
--datasource_is_grayscale True \
+-datasource_max_class_count 0 \
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer adam \
--params_grid is_class_loss overlap_coef batch_size datasource_max_class_count \
+-params_grid center_loss_coef class_loss_coef weight_decay datasource_is_grayscale \
 -center_loss_min_count 50 \
 -class_loss_epochs_limit 50 \
 -learning_rate 1e-5 \
+-weight_decay 1e-6 0 1e-7 \
+-datasource_is_grayscale True False \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
--neg_loss_coef 4.0 \
--center_loss_coef 1.0 \
--class_loss_coef 2.0 \
--embedding_init uniform \
--overlap_coef 1.5 1.0 0.5 \
+-neg_loss_coef 1.0 \
+-center_loss_coef 1.0 0.0 \
+-class_loss_coef 1.0 0.0 \
+-embedding_init xavier \
+-overlap_coef 1.5 \
 -triplet_similarity euclidean \
 -embedding_norm unit_range \
 -embedding_scale 1.0 \
 -is_center_loss True \
--is_class_loss False True \
+-is_class_loss True \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \

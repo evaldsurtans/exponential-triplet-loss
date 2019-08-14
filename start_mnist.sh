@@ -2,31 +2,33 @@
 
 module load conda
 export TMPDIR=$HOME/tmp
+eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_mnist/
+cd ~/Documents/fassion_minst/
 
 
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_6_model_12_dobe_exp13_mnist_fix_emb_128 \
+-report aug_13_model_12_dobe_exp13_mnist_fix_emb_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type mnist \
 -optimizer adam \
--params_grid overlap_coef embedding_layers layers_embedding_dropout \
--learning_rate 1e-4 \
+-params_grid class_loss_coef center_loss_coef \
+-embedding_init xavier \
+-center_loss_min_count 500 \
+-learning_rate 1e-4 1e-5 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
--class_loss_coef 0.0 \
--overlap_coef 0.8 1.0 1.2 1.5 \
--layers_embedding_dropout 0.5 0.0 0.8 \
--layers_embedding_type lin \
--embedding_layers 1 2 \
--embedding_layers_hidden 512 \
+-center_loss_coef 1.0 0.1 \
+-class_loss_coef 0.0 1.0 \
+-overlap_coef 1.5 \
+-layers_embedding_dropout 0.0 \
+-layers_embedding_type last \
+-embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
@@ -40,6 +42,7 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -neg_coef 0.0 \
 -triplet_loss exp13 \
 -embedding_layers_hidden_func relu \
+-embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
 -embedding_size 128 \
 -embedding_function tanh \

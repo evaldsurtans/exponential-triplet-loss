@@ -2,30 +2,31 @@
 
 module load conda
 export TMPDIR=$HOME/tmp
+eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_mnist/
+cd ~/Documents/fassion_minst/
 
 
 # repeat
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_15_model_12_dobe_exp13_cifar_10_fix_emb_128 \
+-report aug_13_model_12_dobe_exp13_cifar_10_fix_emb_128 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type cifar_10 \
 -optimizer adam \
--params_grid overlap_coef embedding_init center_loss_min_count \
--embedding_init uniform normal xavier \
--center_loss_min_count 500 1000 \
--learning_rate 1e-4 \
+-params_grid class_loss_coef center_loss_coef \
+-embedding_init xavier \
+-center_loss_min_count 500 \
+-learning_rate 1e-4 1e-5 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
--class_loss_coef 0.0 \
--overlap_coef 1.5 1.0 0.5 0.3 0.1 \
+-center_loss_coef 1.0 0.1 \
+-class_loss_coef 0.0 1.0 \
+-overlap_coef 1.5 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \

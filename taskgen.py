@@ -458,13 +458,14 @@ for idx_comb, params_comb in enumerate(grid):
                 fp.write(f'python {path_base}/{args.main_script}.py {str_params} {each_task_line_end}\n')
 
             # last line
-            if process_per_task + 1 == max_process_per_task and max_process_per_task > 1:
-                if is_windows:
-                    fp.write(f':wait\n')
-                    for each in windows_log_list:
-                        fp.write(f'if not exist {each} goto wait\n')
-                else:
-                    fp.write(f'wait\n')
+            if max_process_per_task > 1:
+                if idx_comb == len(grid)-1 or process_per_task + 1 == max_process_per_task:
+                    if is_windows:
+                        fp.write(f':wait\n')
+                        for each in windows_log_list:
+                            fp.write(f'if not exist {each} goto wait\n')
+                    else:
+                        fp.write(f'wait\n')
 
         process_per_task += 1
         if process_per_task == max_process_per_task or \
