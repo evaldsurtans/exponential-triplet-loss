@@ -2,19 +2,20 @@
 
 module load conda
 export TMPDIR=$HOME/tmp
+eval "$(conda shell.bash hook)"
 source activate conda_env
-cd ~/Documents/fassion_mnist/
+cd ~/Documents/fassion_minst/
 
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report jun_4_model_12_dobe_exp13_emnist_std_128 \
+-report aug_22_model_12_dobe_exp13_emnist_std_128_cos \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type emnist \
 -optimizer adam \
--params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss \
+-params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss embedding_norm \
 -learning_rate 1e-4 1e-3 3e-4 \
 -is_center_loss True False \
 -is_class_loss False True \
@@ -53,8 +54,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm unit_range \
--triplet_similarity euclidean \
+-embedding_norm l2 none \
+-triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_sampler triplet_sampler_4  \

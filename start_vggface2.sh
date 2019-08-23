@@ -9,7 +9,7 @@ cd ~/Documents/fassion_minst/
 # embedding_init
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report aug_13_model_12_dobe_exp13_vggface_full \
+-report aug_16_model_12_dobe_exp13_vggface_full \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 300 \
@@ -18,16 +18,16 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer adam \
--params_grid center_loss_coef class_loss_coef weight_decay datasource_is_grayscale \
--center_loss_min_count 50 \
+-params_grid class_loss_coef center_loss_min_count \
+-center_loss_min_count 50 250 500 \
 -class_loss_epochs_limit 50 \
 -learning_rate 1e-5 \
--weight_decay 1e-6 0 1e-7 \
--datasource_is_grayscale True False \
+-weight_decay 1e-7 \
+-datasource_is_grayscale False \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 0.0 \
+-center_loss_coef 1.0 \
 -class_loss_coef 1.0 0.0 \
 -embedding_init xavier \
 -overlap_coef 1.5 \

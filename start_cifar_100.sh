@@ -9,7 +9,7 @@ cd ~/Documents/fassion_minst/
 # embedding_size
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report aug_12_model_12_dobe_exp13_cifar_100 \
+-report aug_16_model_12_dobe_exp13_cifar_100 \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 200 \
@@ -17,18 +17,18 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -early_stopping_delta_percent 1e-3 \
 -early_stopping_patience 10 \
 -optimizer adam \
--params_grid class_loss_coef weight_decay datasource_is_grayscale \
+-params_grid class_loss_coef class_loss_coef learning_rate \
 -center_loss_min_count 50 \
 -class_loss_epochs_limit 0 \
--learning_rate 3e-5 \
+-learning_rate 3e-5 1e-4 1e-5 \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
+-center_loss_coef 0.0 1.0 \
 -class_loss_coef 0.0 1.0 \
--datasource_is_grayscale False True \
+-datasource_is_grayscale False \
 -embedding_size 128 \
--weight_decay 0 1e-5 1e-6 \
+-weight_decay 1e-7 \
 -embedding_init xavier \
 -overlap_coef 1.5 \
 -triplet_similarity euclidean \
