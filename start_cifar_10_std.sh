@@ -8,23 +8,23 @@ cd ~/Documents/fassion_minst/
 
 
 # EXTEND TESTS after bugfix is_center_loss True
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report aug_22_model_12_dobe_exp13_cifar_10_std_128_cos \
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report sep_7_model_12_dobe_exp13_cifar_10_std_128_cos \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type cifar_10 \
 -optimizer adam \
--params_grid learning_rate triplet_loss_margin triplet_sampler_var is_class_loss is_center_loss embedding_norm \
--learning_rate 1e-4 1e-3 3e-4 \
+-params_grid triplet_sampler_var is_class_loss is_center_loss \
+-learning_rate 1e-4 \
 -is_center_loss True False \
 -is_class_loss False True \
 -triplet_sampler_var hard semi_hard \
--triplet_loss_margin 0.2 2.0 5.0 \
+-triplet_loss_margin 0.2 \
 -pos_loss_coef 0.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 0.0 \
+-center_loss_coef 1.0 \
 -class_loss_coef 1.0 \
 -overlap_coef 1.7 \
 -layers_embedding_type last \
@@ -57,7 +57,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm l2 none \
+-embedding_norm l2 \
 -triplet_similarity cos \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \

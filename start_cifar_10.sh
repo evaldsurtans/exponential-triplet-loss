@@ -10,13 +10,15 @@ cd ~/Documents/fassion_minst/
 # repeat
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report aug_16_model_12_dobe_exp13_cifar_10_fix_emb_128 \
+-report sep_7_model_12_dobe_exp13_cifar_10_fix_emb_128_NORM \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type cifar_10 \
 -optimizer adam \
--params_grid class_loss_coef center_loss_coef weight_decay \
+-params_grid embedding_norm triplet_similarity \
+-embedding_norm l2 unit_range \
+-triplet_similarity cos euclidean \
 -embedding_init xavier \
 -center_loss_min_count 500 \
 -learning_rate 1e-4 \
@@ -24,9 +26,9 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -is_class_loss True \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 0.0 \
--class_loss_coef 0.0 1.0 \
--weight_decay 1e-7 0 \
+-center_loss_coef 1.0 \
+-class_loss_coef 1.0 \
+-weight_decay 0 \
 -overlap_coef 1.5 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
@@ -60,8 +62,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--embedding_norm unit_range \
--triplet_similarity euclidean \
 -filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \

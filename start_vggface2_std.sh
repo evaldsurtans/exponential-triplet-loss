@@ -10,7 +10,7 @@ cd ~/Documents/fassion_minst/
 # triplet_loss_margin
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report aug_22_model_12_dobe_exp13_vggface_full_std_cos \
+-report sep_7_model_12_dobe_exp13_vggface_full_std \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 300 \
@@ -19,8 +19,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer adam \
--params_grid class_loss_coef center_loss_min_count filter_samples embedding_norm \
--center_loss_min_count 50 250 500 \
+-params_grid center_loss_coef class_loss_coef filter_samples \
+-center_loss_min_count 250 \
 -filter_samples hard semi_hard \
 -is_triplet_loss_margin_auto True \
 -triplet_loss_margin 0.2 \
@@ -31,11 +31,11 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
+-center_loss_coef 1.0 0.0 \
 -class_loss_coef 1.0 0.0 \
 -embedding_init xavier \
 -overlap_coef 1.5 \
--embedding_norm l2 none \
+-embedding_norm l2 \
 -triplet_similarity cos \
 -embedding_scale 1.0 \
 -is_center_loss True \

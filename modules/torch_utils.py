@@ -68,6 +68,16 @@ def normalize_output(output_emb, embedding_norm, embedding_scale=1.0):
         ones_norm = torch.ones_like(div_norm)
         scaler = torch.where(norm > embedding_scale, div_norm, ones_norm)
         output_norm = output_emb * scaler
+    elif embedding_norm == 'unit_range_inf':
+        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
+        out_l2 = embedding_scale * output_emb/norm
+        inf_replaced = norm % embedding_scale - out_l2
+        output_norm = torch.where(norm > embedding_scale, inf_replaced, output_emb)
+    elif embedding_norm == 'unit_range_bounce':
+        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
+        out_l2 = embedding_scale * output_emb/norm
+        bounce_replaced = out_l2 - norm % embedding_scale
+        output_norm = torch.where(norm > embedding_scale, bounce_replaced, output_emb)
     else: # none
         output_norm = output_emb
     return output_norm
