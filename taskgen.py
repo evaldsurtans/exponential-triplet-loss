@@ -292,6 +292,7 @@ for params_comb in grid:
     tmp_cnt += 1
     params_comb['datasource_exclude_train_class_ids'] = args.datasource_exclude_train_class_ids
     params_comb['datasource_include_test_class_ids'] = args.datasource_include_test_class_ids
+    params_comb['datasource'] = args.datasource
     params_comb['tf_path_test'] = args.tf_path_test
     params_comb['tf_path_train'] = args.tf_path_train
     params_comb['tf_ratio_train'] = args.tf_ratio_train

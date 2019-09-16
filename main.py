@@ -94,7 +94,7 @@ parser.add_argument('-embedding_scale', default=1.0, type=float) #l2-softmax
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='cifar_10', type=str) # fassion_mnist mnist, vggface2
+parser.add_argument('-datasource_type', default='', type=str) # fassion_mnist mnist, vggface2
 parser.add_argument('-datasource_path_memmaps', default='/Users/evalds/Downloads/vggface2', type=str)
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
