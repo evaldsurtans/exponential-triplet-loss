@@ -6,44 +6,48 @@ eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
-# embedding_init
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 1 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_15_model_12_dobe_exp13_vggface_full_rep_radam_fixed \
+
+python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report sep_16_model_13_daugava_comparison \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
--datasource datasource_memmap \
--datasource_max_class_count 500 1000 2000 4000 0 \
--datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
--early_stopping_delta_percent 1e-3 \
+-datasource_type emnist \
 -optimizer radam \
--params_grid learning_rate datasource_max_class_count class_loss_coef \
+-params_grid model learning_rate class_loss_coef overlap_coef \
+-model model_12_dobe model_13_daugava \
 -embedding_norm unit_range \
 -triplet_similarity euclidean \
+-embedding_init xavier \
 -center_loss_min_count 500 \
--class_loss_epochs_limit 100 \
 -learning_rate 1e-5 1e-4 \
--weight_decay 0 \
--datasource_is_grayscale False \
--class_layers 1 \
+-is_center_loss True \
+-is_class_loss True \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
--class_loss_coef 0.0 1.0 \
--embedding_init xavier \
--overlap_coef 0.0 \
--embedding_scale 1.0 \
--is_center_loss True \
--is_class_loss True \
+-class_loss_coef 1.0 0.0 \
+-weight_decay 0 \
+-overlap_coef 0.0 1.5 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
--embedding_layers_hidden 512 \
--suffix_affine_layers_hidden_params 4 \
+-suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet161 \
+-model_encoder densenet121 \
+-embedding_layers_last_norm none \
+-max_embeddings_per_class_test 0 \
+-max_embeddings_per_class_train 0 \
+-max_embeddings_histograms 0 \
+-slope_coef 1.0 \
+-pos_coef 0.0 \
+-neg_coef 0.0 \
+-triplet_loss exp13 \
+-embedding_layers_hidden_func relu \
+-embedding_layers_hidden 1024 \
+-leaky_relu_slope 0.01 \
 -embedding_size 128 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
@@ -72,11 +76,20 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_4 \
--model model_12_dobe \
 -is_pre_grad_locked False \
+-datasource datasource_pytorch \
 -is_hpc True \
 -is_quick_test False \
 -single_task False
+
+
+# euclidean unit_range
+# cos l2
+# exp8
+
+# -triplet_loss exp1 standard standard2 lossless lifted lifted2 \
+# speaker_small_male_4000_log_dual_13
+# speaker_small_female_4000_log_dual_13
 
 
 

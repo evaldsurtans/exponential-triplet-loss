@@ -69,6 +69,7 @@ parser.add_argument('-model_encoder', default='resnet18', type=str)
 parser.add_argument('-is_model_encoder_pretrained', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-layers_embedding_type', default='last', type=str) #refined, pooled, last
 parser.add_argument('-layers_embedding_dropout', default=0.0, type=float)
+parser.add_argument('-is_layers_embedding_batchnorm', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -95,7 +96,7 @@ parser.add_argument('-embedding_scale', default=1.0, type=float) #l2-softmax
 
 parser.add_argument('-path_data', default='./data', type=str)
 parser.add_argument('-datasource_workers', default=8, type=int) #8
-parser.add_argument('-datasource_type', default='', type=str) # fassion_mnist mnist, vggface2
+parser.add_argument('-datasource_type', default='mnist', type=str) # fassion_mnist mnist, vggface2
 parser.add_argument('-datasource_path_memmaps', default='/Users/evalds/Downloads/vggface2', type=str)
 parser.add_argument('-datasource_exclude_train_class_ids', nargs='*', default=[])
 parser.add_argument('-datasource_include_test_class_ids', nargs='*', default=[])
