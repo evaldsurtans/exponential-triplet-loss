@@ -3,6 +3,7 @@ from torch.autograd import Variable
 
 from modules.file_utils import FileUtils
 from modules.math_utils import normalize_vec
+from modules.radam import RAdam
 from modules.torch_utils import to_numpy
 
 matplotlib.use('Agg')
@@ -436,6 +437,12 @@ def get_optimizer(lr):
             model.parameters(),
             lr=lr,
             momentum=0.9,
+            weight_decay=args.weight_decay
+        )
+    elif args.optimizer == 'radam':
+        optimizer = RAdam(
+            model.parameters(),
+            lr=lr,
             weight_decay=args.weight_decay
         )
     return optimizer
