@@ -9,33 +9,35 @@ cd ~/Documents/fassion_minst/
 
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_16_model_12_dobe_exp13_emnist_inf_rep \
+-report sep_20_model_12_dobe_exp13_emnist_inf_rep_inits \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource_type emnist \
--optimizer adam \
--params_grid embedding_norm learning_rate class_loss_coef \
--embedding_norm unit_range_bounce_2 unit_range_bounce_limit unit_range \
+-optimizer radam \
+-params_grid embedding_norm overlap_coef class_layers embedding_scale pos_loss_coef center_loss_coef \
+-embedding_norm unit_range_bounce_limit unit_range \
 -triplet_similarity euclidean \
--embedding_init xavier \
--center_loss_min_count 500 \
--learning_rate 1e-5 3e-5 1e-6 \
+-embedding_init zeros \
+-center_loss_min_count 500 100 \
+-embedding_scale 2.0 1.0 \
+-class_layers 1 0 \
+-learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 1.0 \
+-pos_loss_coef 1.0 2.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
--class_loss_coef 1.0 0.0 \
+-center_loss_coef 1.0 2.0 \
+-class_loss_coef 1.0 \
 -weight_decay 0 \
--overlap_coef 1.5 \
+-overlap_coef 40.0 0.0 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet121 \
+-model_encoder densenet161 \
 -embedding_layers_last_norm none \
 -max_embeddings_per_class_test 0 \
 -max_embeddings_per_class_train 0 \

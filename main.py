@@ -171,14 +171,15 @@ parser.add_argument('-suffix_affine_layers_hidden_func', default='relu', type=st
 parser.add_argument('-suffix_affine_layers_hidden_params', default=4, type=int)
 
 parser.add_argument('-early_stopping_patience', default=5, type=int)
-parser.add_argument('-early_stopping_param', default='test_acc_closest', type=str)
+parser.add_argument('-early_stopping_param', default='test_dist_delta', type=str)
+parser.add_argument('-early_stopping_delta_percent', default=1e-3, type=float)
 parser.add_argument('-early_stopping_param_coef', default=1.0, type=float)
-parser.add_argument('-early_stopping_delta_percent', default=0.01, type=float)
 
 parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (str(x).lower() == 'true'))
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
+parser.add_argument('-max_embeddings_class_categories_test', default=50, type=int)
 parser.add_argument('-max_embeddings_per_class_test', default=500, type=int) # 0 = unlimited
 parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 0 = unlimited
 
@@ -465,7 +466,7 @@ def calc_err(meter):
 
 
 def forward(batch, output_by_y, is_train):
-    global is_logged_cnorm
+    global is_logged_cnorm, is_class_loss_on
 
     y = batch[0].to(args.device)
     x = batch[1].to(args.device)
@@ -483,6 +484,9 @@ def forward(batch, output_by_y, is_train):
 
         if hasattr(model_module, 'forward_with_classification'):
             output, output_class = model.forward_with_classification(x)
+
+    if args.model == 'model_13_hospital':
+        output, output_class = model.forward(x)
 
     if output is None:
         if hasattr(model_module, 'init_hidden'):
@@ -882,6 +886,7 @@ for epoch in range(1, args.epochs_count + 1):
 
     for data_loader in [data_loader_train, data_loader_test]:
         idx_quick_test = 0
+        is_embedding_images_completed = False
 
         hist_positives_dist = []
         hist_negatives_dist = []
@@ -889,6 +894,7 @@ for epoch in range(1, args.epochs_count + 1):
         hist_negatives_dist_hard = []
 
         output_by_y = {}
+        output_y_labels_unique_for_projector_images = []
 
         meter_prefix = 'train'
         if data_loader == data_loader_train:
@@ -960,32 +966,47 @@ for epoch in range(1, args.epochs_count + 1):
 
             output = to_numpy(result['output'].to('cpu')).tolist()
             y = to_numpy(result['y']).tolist()
-            images = to_numpy(result['x']).tolist()
+
+            images = None # save resources, only convert images to numpy when needed
 
             max_samples_per_class = args.max_embeddings_per_class_test
             if data_loader == data_loader_train:
                 max_samples_per_class = args.max_embeddings_per_class_train
 
             for idx, y_each in enumerate(y):
-                # dictionary by y
+
+                # Class found first time
                 if y_each not in output_by_y.keys():
-                    if data_loader == data_loader_train:
-                        y_label = data_loader_train.dataset.classes[y_each]
-                    else:
-                        y_label = data_loader_test.dataset.classes[y_each]
+                    if y_each not in output_y_labels_unique_for_projector_images:
+                        output_y_labels_unique_for_projector_images.append(y_each)
+                        if len(output_y_labels_unique_for_projector_images) >= args.max_embeddings_projector_classes:
+                            is_embedding_images_completed = True
+
+                    y_label = data_loader.dataset.classes[y_each]
                     output_by_y[y_each] = {
-                        'embeddings': [],
-                        'images': [],
-                        'label': y_label,
+                        'embeddings': [], # embeddings limited by max_samples_per_class max_embeddings_per_class_train, max_embeddings_per_class_test (used also in training for center loss)
+                        'images': [], # images will be filled only for first 50 classes
+                        'label': y_label, # one label for each class
                     }
+
+                # More than one example for this class
                 if max_samples_per_class <= 0 or len(output_by_y[y_each]['embeddings']) < max_samples_per_class:
                     output_by_y[y_each]['embeddings'].append(output[idx])
-                    output_by_y[y_each]['images'].append(images[idx])
+
+                    if y_each in output_y_labels_unique_for_projector_images:
+                        if len(output_by_y[y_each]['images']) < args.max_embeddings_projector_samples: # do not store more images than needed since used only in projector
+                            # save resources, only convert images to numpy when needed
+                            if images is None:
+                                images = to_numpy(result['x']).tolist()
+                            output_by_y[y_each]['images'].append(images[idx])
 
             idx_quick_test += 1
-            if args.is_quick_test and idx_quick_test >= 5:
+            if args.is_quick_test and idx_quick_test >= 3:
                 break
 
+            # END OF BACTH LOOP
+
+        # AFTER EPOCH HISTOGRAMS
         try:
 
             histogram_bins = 'auto'
@@ -1006,17 +1027,13 @@ for epoch in range(1, args.epochs_count + 1):
             logging.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
 
 
+        # AFTER EPOCH CLOSEST ACCURACY
         output_embeddings = []
-        output_y_labels = []
         output_y = []
-        output_y_images = []
         for key in output_by_y.keys():
             output_embeddings += output_by_y[key]['embeddings']
-            output_y_images += output_by_y[key]['images']
-            label = output_by_y[key]['label']
-            for _ in range(len(output_by_y[key]['embeddings'])):
-                output_y_labels.append(label)
-                output_y.append(key)
+            size_embeddings = len(output_by_y[key]['embeddings'])
+            output_y += (np.ones((size_embeddings, ), dtype=np.int) * key).tolist() # generate list of class keys values
 
         predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
             np.array(output_embeddings),
@@ -1031,11 +1048,12 @@ for epoch in range(1, args.epochs_count + 1):
         )
 
         meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
-
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc_closest'].add(tmp1[0], tmp2[0])
         state[f'{meter_prefix}_max_dist'] = np.average(list(class_max_dist.values()))
+
+        # AFTER EPOCH RANGE ACCURACY
 
         predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
             np.array(output_embeddings),
@@ -1049,43 +1067,46 @@ for epoch in range(1, args.epochs_count + 1):
             distances_precomputed=distances_precomputed)
 
         meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
-
         tmp1 = predicted.permute(1, 0).data
         tmp2 = target.permute(1, 0).data
         meters[f'{meter_prefix}_auc_range'].add(tmp1[0], tmp2[0])
 
 
-        # sampling of embeddings
+        #AFTER EPOCH: sampling of embeddings for projector
         output_embeddings = []
         output_y_labels = []
         output_y = []
         output_y_images = []
         count_labels = 0
         for key in output_by_y.keys():
-            count_labels += 1
-            if count_labels > args.max_embeddings_projector_classes:
-                break # tensorboard limits 50 clases
-            embeddings = output_by_y[key]['embeddings']
-            images = output_by_y[key]['images']
+            if key in output_y_labels_unique_for_projector_images:
 
-            if len(embeddings) > args.max_embeddings_projector_samples:
-                embeddings = embeddings[:args.max_embeddings_projector_samples]
-                images = images[:args.max_embeddings_projector_samples]
+                embeddings = output_by_y[key]['embeddings']
+                images = output_by_y[key]['images']
 
-            output_embeddings += embeddings
-            output_y_images += images
+                if len(embeddings) > args.max_embeddings_projector_samples:
+                    embeddings = embeddings[:args.max_embeddings_projector_samples]
+                    images = images[:args.max_embeddings_projector_samples]
 
-            label = output_by_y[key]['label']
-            for _ in range(len(embeddings)):
-                output_y_labels.append(label)
-                output_y.append(key)
+                output_embeddings += embeddings
+                output_y_images += images
 
-        # label_img: :math:`(N, C, H, W)
-        tensorboard_writer.add_embedding(
-            mat=torch.tensor(np.array(output_embeddings)),
-            label_img=torch.FloatTensor(np.array(output_y_images)),
-            metadata=output_y_labels,
-            global_step=epoch, tag=f'{meter_prefix}_embeddings')
+                label = output_by_y[key]['label']
+                for _ in range(len(embeddings)):
+                    output_y_labels.append(label)
+                    output_y.append(key)
+
+        try:
+            # label_img: :math:`(N, C, H, W)
+            tensorboard_writer.add_embedding(
+                mat=torch.tensor(np.array(output_embeddings)),
+                label_img=torch.FloatTensor(np.array(output_y_images)),
+                metadata=output_y_labels,
+                global_step=epoch, tag=f'{meter_prefix}_embeddings')
+        except Exception as e:
+            LoggingUtils.error(str(e))
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            LoggingUtils.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
 
         # sampling of closest class embedding distances pairs
         hist_positives_dist_closest = []

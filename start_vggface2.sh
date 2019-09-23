@@ -8,13 +8,13 @@ cd ~/Documents/fassion_minst/
 
 # embedding_init
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 1 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_15_model_12_dobe_exp13_vggface_full_rep_radam_fixed \
+-hpc_gpu_count 2 -hpc_cpu_count_for_gpu 16 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report sep_20_model_13_hospital_exp13_vggface_full_rep_radam_fixed \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -datasource datasource_memmap \
--datasource_max_class_count 500 1000 2000 4000 0 \
+-datasource_max_class_count 500 1000 2000 \
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer radam \
@@ -72,7 +72,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_4 \
--model model_12_dobe \
+-model model_13_hospital \
 -is_pre_grad_locked False \
 -is_hpc True \
 -is_quick_test False \
