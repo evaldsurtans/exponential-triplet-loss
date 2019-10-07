@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import platform
@@ -61,3 +62,44 @@ class FileUtils(object):
     def createDir(dirPath):
         if not os.path.exists(dirPath):
             os.makedirs(dirPath)
+
+    @staticmethod
+    def listSubDirs(dirPath):
+        dirs = []
+        if os.path.exists(dirPath):
+            paths = os.listdir(dirPath)
+            for each in paths:
+                each_path = f'{dirPath}/{each}'
+                if os.path.isdir(each_path):
+                    dirs.append(each_path)
+        return dirs
+
+    @staticmethod
+    def listSubFiles(dirPath):
+        files = []
+        if os.path.exists(dirPath):
+            paths = os.listdir(dirPath)
+            for each in paths:
+                each_path = f'{dirPath}/{each}'
+                if not os.path.isdir(each_path):
+                    files.append(each_path)
+        return files
+
+    @staticmethod
+    def loadJSON(path):
+        result = None
+        if os.path.exists(path):
+            with open(path, 'r') as fp:
+                FileUtils.lock_file(fp)
+                result = json.load(fp)
+                FileUtils.lock_file(fp)
+        return result
+
+
+    @staticmethod
+    def writeJSON(path, obj):
+        with open(path, 'w') as fp:
+            FileUtils.lock_file(fp)
+            json.dump(obj, fp, indent=4)
+            FileUtils.lock_file(fp)
+

@@ -22,7 +22,7 @@ parser.add_argument('-path_input', default='/Users/evalds/Downloads/vggface2/tes
 # /vggface2/test.json
 parser.add_argument('-path_output', default='/Users/evalds/Downloads/vggface2/', type=str)
 
-parser.add_argument('-size_img', default=256, type=int)
+parser.add_argument('-size_img', default=128, type=int)
 parser.add_argument('-thread_max', default=200, type=int)
 parser.add_argument('-is_only_json', default=False, type=lambda x: (str(x).lower() == 'true'))
 

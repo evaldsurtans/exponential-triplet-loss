@@ -3,7 +3,7 @@
 #PBS -o /mnt/home/evaldsu/data_raw/vggface2/out.txt
 #PBS -q batch
 #PBS -p 1000
-#PBS -l nodes=1:ppn=50
+#PBS -l nodes=1:ppn=32
 #PBS -l mem=100gb
 #PBS -l walltime=96:00:00
 
@@ -20,8 +20,8 @@ export SDL_VIDEODRIVER=x11
 
 cd ~/Documents/fassion_minst/
 
-python ./process_data_vggface2.py -path_input /mnt/home/evaldsu/data_raw/vggface2/test -path_output /mnt/home/evaldsu/data_raw/vggface2 &
-python ./process_data_vggface2.py -path_input /mnt/home/evaldsu/data_raw/vggface2/train -path_output /mnt/home/evaldsu/data_raw/vggface2
+python ./process_data_vggface2.py -path_input /mnt/home/evaldsu/data_raw/vggface2/test -path_output /mnt/home/evaldsu/data_raw/vggface2_128 &
+python ./process_data_vggface2.py -path_input /mnt/home/evaldsu/data_raw/vggface2/train -path_output /mnt/home/evaldsu/data_raw/vggface2_128
 wait
 
 

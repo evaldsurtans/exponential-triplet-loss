@@ -7,9 +7,9 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
-python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_20_model_12_dobe_exp13_emnist_inf_rep_inits \
+python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report oct_7_model_12_hospital_exp13_emnist_inf_rep_inits \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
@@ -77,7 +77,7 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_4 \
--model model_12_dobe \
+-model model_13_hospital \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \
 -is_hpc True \

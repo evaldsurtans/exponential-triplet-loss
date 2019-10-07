@@ -35,8 +35,10 @@ import shutil
 import json
 import logging
 
+from pathlib import Path
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
+from skimage.transform import resize
 from sklearn.metrics import roc_curve
 
 from modules.tensorboard_utils import TensorBoardUtils
@@ -48,6 +50,8 @@ from modules.dict_to_obj import DictToObj
 from modules.command_txt_utils import CommandTxtUtils
 from modules.mathplotlib_utils import MathPlotLibUtils
 from modules.centroid_classification_utils import CentroidClassificationUtils
+
+from joblib import Parallel, delayed
 
 import torchnet as tnt # pip install git+https://github.com/pytorch/tnt.git@master
 import traceback, sys
@@ -179,12 +183,14 @@ parser.add_argument('-is_reshuffle_after_epoch', default=True, type=lambda x: (s
 parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
-parser.add_argument('-max_embeddings_class_categories_test', default=50, type=int)
+parser.add_argument('-max_embeddings_class_for_projector', default=50, type=int)
+parser.add_argument('-img_size_embeddings_class_for_projector', default=64, type=int)
 parser.add_argument('-max_embeddings_per_class_test', default=500, type=int) # 0 = unlimited
 parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 0 = unlimited
 
 parser.add_argument('-max_embeddings_projector_classes', default=50, type=int) # 0 = unlimited
-parser.add_argument('-max_embeddings_projector_samples', default=200, type=int) # 0 = unlimited
+parser.add_argument('-max_embeddings_projector_samples', default=100, type=int) # 0 = unlimited
+parser.add_argument('-embedding_calculation_threads', default=8, type=int)
 
 args, args_other = parser.parse_known_args()
 
@@ -465,7 +471,7 @@ def calc_err(meter):
     return fpr, tpr, eer
 
 
-def forward(batch, output_by_y, is_train):
+def forward(batch, centers_of_classes_by_y, is_train):
     global is_logged_cnorm, is_class_loss_on
 
     y = batch[0].to(args.device)
@@ -739,21 +745,21 @@ def forward(batch, output_by_y, is_train):
     if args.is_center_loss and args.center_loss_coef > 0:
         centers = []
         outputs_by_centers = []
-        cached_centers_by_y = {}
         list_y = to_numpy(y).tolist()
 
-        # output_by_y => all centers from current epoch
+        # centers_of_classes_by_y => all centers from current epoch
         for idx, each_y in enumerate(list_y):
-            if each_y in output_by_y.keys():
-                if each_y not in cached_centers_by_y.keys():
-                    if len(output_by_y[each_y]['embeddings']) >= args.center_loss_min_count:
-                        cached_centers_by_y[each_y] = np.average(output_by_y[each_y]['embeddings'], axis=0)
-                        if args.embedding_norm == 'l2': #TODO unit_range
-                            cached_centers_by_y[each_y] = normalize_vec(cached_centers_by_y[each_y])
-                        cached_centers_by_y[each_y] = torch.FloatTensor(cached_centers_by_y[each_y]).to(args.device)
-                if each_y in cached_centers_by_y.keys():
-                    centers.append(cached_centers_by_y[each_y])
-                    outputs_by_centers.append(output[idx])
+            if each_y not in centers_of_classes_by_y:
+                centers_of_classes_by_y[each_y] = {
+                    'sum': np.zeros((args.embedding_size, )), # numpy
+                    'count': 0
+                }
+            centers_of_classes_by_y[each_y]['sum'] += to_numpy(output[idx])
+            centers_of_classes_by_y[each_y]['count'] += 1
+            center = centers_of_classes_by_y[each_y]['sum'] / centers_of_classes_by_y[each_y]['count']
+
+            centers.append(torch.FloatTensor(center))
+            outputs_by_centers.append(output[idx])
 
         if len(centers) > 0:
             centers = torch.stack(centers).to(args.device)
@@ -875,6 +881,9 @@ meters = dict(
 #torch.autograd.set_detect_anomaly(True)
 
 LoggingUtils.info(f'batch count train: {len(data_loader_train)} test: {len(data_loader_test)}')
+path_embeddings = f'./tmp/{args.id}/embeddings'
+FileUtils.createDir(path_embeddings)
+
 
 state_before_stopping = copy.deepcopy(state)
 for epoch in range(1, args.epochs_count + 1):
@@ -885,16 +894,20 @@ for epoch in range(1, args.epochs_count + 1):
         meters[key].reset()
 
     for data_loader in [data_loader_train, data_loader_test]:
-        idx_quick_test = 0
-        is_embedding_images_completed = False
 
         hist_positives_dist = []
         hist_negatives_dist = []
         hist_positives_dist_hard = []
         hist_negatives_dist_hard = []
 
-        output_by_y = {}
-        output_y_labels_unique_for_projector_images = []
+        idx_quick_test = 0
+        centers_of_classes_by_y = {
+            -1: { # example structure
+                'sum': np.zeros((args.embedding_size, )), # numpy
+                'count': 0
+            }
+        }
+        FileUtils.deleteDir(path_embeddings, is_delete_dir_path=False)
 
         meter_prefix = 'train'
         if data_loader == data_loader_train:
@@ -911,7 +924,7 @@ for epoch in range(1, args.epochs_count + 1):
             optimizer_func.zero_grad()
             is_train = (data_loader == data_loader_train)
 
-            result = forward(batch, output_by_y, is_train)
+            result = forward(batch, centers_of_classes_by_y, is_train)
 
             if is_train:
                 if result['loss'] is not None:
@@ -967,38 +980,69 @@ for epoch in range(1, args.epochs_count + 1):
             output = to_numpy(result['output'].to('cpu')).tolist()
             y = to_numpy(result['y']).tolist()
 
-            images = None # save resources, only convert images to numpy when needed
-
             max_samples_per_class = args.max_embeddings_per_class_test
             if data_loader == data_loader_train:
                 max_samples_per_class = args.max_embeddings_per_class_train
 
+            list_x_for_projector = []
             for idx, y_each in enumerate(y):
+                # first 50 classes to include in embeddings projector (y are class indexes)
+                if y_each < args.max_embeddings_class_for_projector:
+                    x_each = to_numpy(result['x'][idx][0])
+                    x_each = resize(x_each, (args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector)) # resize for smaller resolution
+                    list_x_for_projector.append(x_each)
+                else:
+                    list_x_for_projector.append(None)
 
-                # Class found first time
-                if y_each not in output_by_y.keys():
-                    if y_each not in output_y_labels_unique_for_projector_images:
-                        output_y_labels_unique_for_projector_images.append(y_each)
-                        if len(output_y_labels_unique_for_projector_images) >= args.max_embeddings_projector_classes:
-                            is_embedding_images_completed = True
+            def process_y_outputs(y_each, label, output_each, x_each):
+                emb_json = {
+                    'label': int(label),
+                    'count': 0
+                }
+                path_emb_lock = f'{path_embeddings}/{y_each}.lock'
+                if not os.path.exists(path_emb_lock):
+                    Path(path_emb_lock).touch()
 
-                    y_label = data_loader.dataset.classes[y_each]
-                    output_by_y[y_each] = {
-                        'embeddings': [], # embeddings limited by max_samples_per_class max_embeddings_per_class_train, max_embeddings_per_class_test (used also in training for center loss)
-                        'images': [], # images will be filled only for first 50 classes
-                        'label': y_label, # one label for each class
-                    }
+                with open(path_emb_lock, 'r') as fp_lock:
+                    FileUtils.lock_file(fp_lock)
+                    path_emb_json = f'{path_embeddings}/{y_each}.json'
+                    path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+                    if os.path.exists(path_emb_json):
+                        emb_json = FileUtils.loadJSON(path_emb_json)
 
-                # More than one example for this class
-                if max_samples_per_class <= 0 or len(output_by_y[y_each]['embeddings']) < max_samples_per_class:
-                    output_by_y[y_each]['embeddings'].append(output[idx])
+                    emb_json['count'] += 1
+                    emb_mem = np.memmap(
+                        path_emb_mem,
+                        mode='r+' if os.path.exists(path_emb_mem) else 'w+',
+                        dtype=np.float16,
+                        shape=(emb_json['count'], args.embedding_size))
 
-                    if y_each in output_y_labels_unique_for_projector_images:
-                        if len(output_by_y[y_each]['images']) < args.max_embeddings_projector_samples: # do not store more images than needed since used only in projector
-                            # save resources, only convert images to numpy when needed
-                            if images is None:
-                                images = to_numpy(result['x']).tolist()
-                            output_by_y[y_each]['images'].append(images[idx])
+                    emb_mem[emb_json['count']-1] = np.array(output_each)
+                    emb_mem.flush()
+
+                    if x_each is not None:
+                        path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
+                        size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
+                        emb_img_mem = np.memmap(
+                            path_emb_img_mem,
+                            mode='r+' if os.path.exists(path_emb_img_mem) else 'w+',
+                            dtype=np.float16,
+                            shape=(emb_json['count'], size_img_flattened))
+
+                        emb_img_mem[emb_json['count']-1] = np.array(x_each).flatten()
+                        emb_img_mem.flush()
+
+                    FileUtils.writeJSON(path_emb_json, emb_json)
+                    FileUtils.unlock_file(fp_lock)
+
+            Parallel(n_jobs=args.embedding_calculation_threads)(
+                delayed(process_y_outputs)(
+                    y_each,
+                    data_loader.dataset.classes[y_each],
+                    output_each,
+                    x_each
+                ) for y_each, output_each, x_each in zip(y, output, list_x_for_projector)
+            )
 
             idx_quick_test += 1
             if args.is_quick_test and idx_quick_test >= 3:
@@ -1028,97 +1072,83 @@ for epoch in range(1, args.epochs_count + 1):
 
 
         # AFTER EPOCH CLOSEST ACCURACY
-        output_embeddings = []
-        output_y = []
-        for key in output_by_y.keys():
-            output_embeddings += output_by_y[key]['embeddings']
-            size_embeddings = len(output_by_y[key]['embeddings'])
-            output_y += (np.ones((size_embeddings, ), dtype=np.int) * key).tolist() # generate list of class keys values
 
-        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
-            np.array(output_embeddings),
-            np.array(output_y),
+        class_max_dist, class_centroids, y_list, sample_count, paths_embs_idx_path_pairs = CentroidClassificationUtils.calculate_accuracy(
+            path_embeddings,
+            meters[f'{meter_prefix}_acc_closest'],
+            meters[f'{meter_prefix}_auc_closest'],
             type='closest',
             norm=args.embedding_norm,
             triplet_similarity=args.triplet_similarity,
             mode=args.device,
-            class_max_dist=None,
-            class_centroids=None,
-            distances_precomputed=None
+            embedding_size=args.embedding_size
         )
 
-        meters[f'{meter_prefix}_acc_closest'].add(predicted, target_y)
-        tmp1 = predicted.permute(1, 0).data
-        tmp2 = target.permute(1, 0).data
-        meters[f'{meter_prefix}_auc_closest'].add(tmp1[0], tmp2[0])
         state[f'{meter_prefix}_max_dist'] = np.average(list(class_max_dist.values()))
 
         # AFTER EPOCH RANGE ACCURACY
 
-        predicted, target, target_y, class_max_dist, class_centroids, distances_precomputed = CentroidClassificationUtils.calulate_classes(
-            np.array(output_embeddings),
-            np.array(output_y),
+        class_max_dist, class_centroids, y_list, sample_count, paths_embs_idx_path_pairs = CentroidClassificationUtils.calculate_accuracy(
+            path_embeddings,
+            meters[f'{meter_prefix}_acc_range'],
+            meters[f'{meter_prefix}_auc_range'],
             type='range',
             norm=args.embedding_norm,
             triplet_similarity=args.triplet_similarity,
             mode=args.device,
+            embedding_size=args.embedding_size,
             class_max_dist=class_max_dist,
             class_centroids=class_centroids,
-            distances_precomputed=distances_precomputed)
-
-        meters[f'{meter_prefix}_acc_range'].add(predicted, target_y)
-        tmp1 = predicted.permute(1, 0).data
-        tmp2 = target.permute(1, 0).data
-        meters[f'{meter_prefix}_auc_range'].add(tmp1[0], tmp2[0])
-
+            y_list=y_list,
+            sample_count=sample_count,
+            paths_embs_idx_path_pairs=paths_embs_idx_path_pairs)
 
         #AFTER EPOCH: sampling of embeddings for projector
-        output_embeddings = []
-        output_y_labels = []
-        output_y = []
-        output_y_images = []
-        count_labels = 0
-        for key in output_by_y.keys():
-            if key in output_y_labels_unique_for_projector_images:
+        #TODO parallel
+        paths_embs = FileUtils.listSubFiles(path_embeddings)
+        for path_emb in paths_embs:
+            if path_emb.endswith('_img.mmap'):
+                y_each = int(os.path.basename(path_emb).split('_')[0])
+                path_emb_json = f'{path_embeddings}/{y_each}.json'
+                path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+                path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
 
-                embeddings = output_by_y[key]['embeddings']
-                images = output_by_y[key]['images']
+                emb_json = FileUtils.loadJSON(path_emb_json)
+                emb_mem = np.memmap(
+                    path_emb_mem,
+                    mode='r',
+                    dtype=np.float16,
+                    shape=(emb_json['count'], args.embedding_size))
 
-                if len(embeddings) > args.max_embeddings_projector_samples:
-                    embeddings = embeddings[:args.max_embeddings_projector_samples]
-                    images = images[:args.max_embeddings_projector_samples]
+                size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
+                emb_img_mem = np.memmap(
+                    path_emb_img_mem,
+                    mode='r',
+                    dtype=np.float16,
+                    shape=(emb_json['count'], size_img_flattened))
+                emb_img = emb_img_mem.reshape((emb_json['count'], args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector))
 
-                output_embeddings += embeddings
-                output_y_images += images
-
-                label = output_by_y[key]['label']
-                for _ in range(len(embeddings)):
-                    output_y_labels.append(label)
-                    output_y.append(key)
-
-        try:
-            # label_img: :math:`(N, C, H, W)
-            tensorboard_writer.add_embedding(
-                mat=torch.tensor(np.array(output_embeddings)),
-                label_img=torch.FloatTensor(np.array(output_y_images)),
-                metadata=output_y_labels,
-                global_step=epoch, tag=f'{meter_prefix}_embeddings')
-        except Exception as e:
-            LoggingUtils.error(str(e))
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            LoggingUtils.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+                try:
+                    # label_img: :math:`(N, C, H, W)
+                    tensorboard_writer.add_embedding(
+                        mat=torch.FloatTensor(emb_mem),
+                        label_img=torch.FloatTensor(emb_img).unsqueeze(dim=1),
+                        metadata=[emb_json['label'] for _ in range(emb_json['count'])],
+                        global_step=epoch, tag=f'{meter_prefix}_emb')
+                except Exception as e:
+                    LoggingUtils.exception(e)
 
         # sampling of closest class embedding distances pairs
         hist_positives_dist_closest = []
         hist_negatives_dist_closest = []
-        keys = list(output_by_y.keys())
-        for idx_key_a, key_a in enumerate(keys):
+        classes_size = int(np.max(data_loader.dataset.classes)) + 1
+        for idx_key_a, key_a in enumerate(class_centroids):
 
             closest_key_b = key_a
             closest_dist = float('Inf')
 
-            for idx_key_b in range(idx_key_a+1, len(keys)):
-                key_b = keys[idx_key_b]
+            for idx_key_b in range(idx_key_a+1, len(class_centroids)):
+                key_b = y_list[idx_key_b]
 
                 # find closest class
                 dist = CentroidClassificationUtils.get_distance(class_centroids[key_a], class_centroids[key_b], args.triplet_similarity, mode=args.device)
@@ -1126,14 +1156,24 @@ for epoch in range(1, args.epochs_count + 1):
                     closest_dist = dist
                     closest_key_b = key_b
 
+            # closest class found
             if closest_key_b != key_a:
-                embeddings_positive = np.array(output_by_y[key_a]['embeddings'])
-                embeddings_negative = np.array(output_by_y[closest_key_b]['embeddings'])
+                pair_a = next(filter(lambda it: it[1] == key_a, paths_embs_idx_path_pairs), None)
+                pair_b = next(filter(lambda it: it[1] == closest_key_b, paths_embs_idx_path_pairs), None)
 
-                embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_positive), 1))
-                hist_positives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_positive, embeddings_positive_center, args.triplet_similarity, mode=args.device).tolist()
-                embeddings_positive_center = np.tile(class_centroids[key_a], (len(embeddings_negative), 1))
-                hist_negatives_dist_closest += CentroidClassificationUtils.get_distance(embeddings_negative, embeddings_positive_center, args.triplet_similarity, mode=args.device).tolist()
+                def load_dists(pair, key_center):
+                    idx_start, y_each = pair
+                    path_emb_json = f'{path_embeddings}/{y_each}.json'
+                    emb_json = FileUtils.loadJSON(path_emb_json)
+                    dists_mem = np.memmap(
+                        f'{path_embeddings}/dists.mmap',
+                        mode='r',
+                        dtype=np.float16,
+                        shape=(idx_start+emb_json['count'], classes_size))
+                    return dists_mem[:, key_center].tolist()
+
+                hist_positives_dist_closest += load_dists(pair_a, key_a)
+                hist_negatives_dist_closest += load_dists(pair_b, key_a)
 
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_pos', np.array(hist_positives_dist_closest), epoch, bins=histogram_bins)
         tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_neg', np.array(hist_negatives_dist_closest), epoch, bins=histogram_bins)
@@ -1149,8 +1189,10 @@ for epoch in range(1, args.epochs_count + 1):
         state[f'{meter_prefix}_eer2'] = eer
 
         tmp_count = []
-        for key in output_by_y.keys():
-            tmp_count.append(len(output_by_y[key]['embeddings']))
+        idx_prev = 0
+        for idx_start, y_each in paths_embs_idx_path_pairs:
+            tmp_count.append(idx_start-idx_prev)
+            idx_prev = idx_start
         state[f'{meter_prefix}_count_embeddings'] = np.median(tmp_count)
 
         if meters[f'{meter_prefix}_loss'].n > 0:

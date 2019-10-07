@@ -14,6 +14,7 @@ import torch.utils.data.sampler
 import random
 import time
 import math
+import torchnet as tnt # pip install git+https://github.com/pytorch/tnt.git@master
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -34,7 +35,9 @@ from numpy.linalg import norm
 import logging
 
 from modules.dict_to_obj import DictToObj
+from modules.file_utils import FileUtils
 from modules.math_utils import cosine_similarity, normalize_vec
+from modules.metrics_utils import MetricAccuracyClassification
 
 
 class CentroidClassificationUtils(object):
@@ -90,74 +93,121 @@ class CentroidClassificationUtils(object):
     # @type = ['range', 'closest']
     # @mode = ['numpy', 'cuda', 'cpu']
     @staticmethod
-    def calulate_classes(embeddings, y_list, type='range', norm='l2', triplet_similarity='cos', mode='numpy', class_max_dist=None, class_centroids=None, distances_precomputed=None):
+    def calculate_accuracy(
+            path_embeddings,
+            meter_acc: tnt.meter.ClassErrorMeter,
+            meter_auc: tnt.meter.AUCMeter,
+            type='range',
+            norm='l2',
+            triplet_similarity='cos',
+            mode='cpu',
+            embedding_size=None,
+            class_max_dist=None, # precomputed
+            class_centroids=None,
+            y_list=None, #precumputed
+            sample_count=None, #precomputed
+            paths_embs_idx_path_pairs=None): # precomputed
 
-        class_centroids_noncomputed = {}
-        for idx_emb, embedding in enumerate(embeddings):
-            y = y_list[idx_emb]
-            if y not in class_centroids_noncomputed:
-                class_centroids_noncomputed[y] = []
-            class_centroids_noncomputed[y].append(embedding)
+        paths_embs = FileUtils.listSubFiles(path_embeddings)
 
-        if distances_precomputed is None:
-            distances_precomputed = {}
-
+        # calculate centroids first
         if class_max_dist is None:
             class_centroids = {}
             class_max_dist = {}
-            for key in class_centroids_noncomputed.keys():
-                np_all_centroids = np.array(class_centroids_noncomputed[key])
-                class_centroids[key] = np.average(np_all_centroids, axis=0)
-                if norm == 'l2':
-                    class_centroids[key] = normalize_vec(class_centroids[key])
+            y_list = []
+            paths_embs_idx_path_pairs = []
+            sample_count = 0
 
-                np_class_centroids_tiled = np.tile(class_centroids[key], (len(np_all_centroids),1))
-                list_dists = CentroidClassificationUtils.get_distance(np_class_centroids_tiled, np_all_centroids, triplet_similarity, mode).tolist()
-                list_dists = sorted(list_dists, reverse=False)
-                list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
-                class_max_dist[key] = list_dists[-1] # last largest distance
+            # TODO parallel
+            for path_emb in paths_embs:
+                if path_emb.endswith('.json'):
+                    y_each = int(os.path.basename(path_emb).split('.')[0])
+                    path_emb_json = f'{path_embeddings}/{y_each}.json'
+                    path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
 
-        predicted = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
-        target = np.zeros( (embeddings.shape[0], int(np.max(list(class_centroids.keys()))) + 1), dtype=np.float )
+                    emb_json = FileUtils.loadJSON(path_emb_json)
+                    emb_mem = np.memmap(
+                        path_emb_mem,
+                        mode='r',
+                        dtype=np.float16,
+                        shape=(emb_json['count'], embedding_size))
 
-        if type != 'range':
-            predicted = np.ones_like(predicted) * 1e9
+                    paths_embs_idx_path_pairs.append((sample_count, y_each))
+                    sample_count += emb_json['count']
 
-        def process_class(y_idx):
-            y_embedding = class_centroids[y_idx]
-            max_dist = class_max_dist[y_idx]
+                    y_list += (np.ones((emb_json['count'], ), dtype=np.int) * y_each).tolist()
 
-            dists = None
-            if y_idx in distances_precomputed.keys():
-                dists = distances_precomputed[y_idx]
-            else:
-                distances_precomputed[y_idx] = {}
+                    class_centroids[y_each] = np.average(emb_mem, axis=0)
+                    if norm == 'l2':
+                        class_centroids[y_each] = normalize_vec(class_centroids[y_each])
 
-            if dists is None:
-                #logging.info(f'center calc: {y_idx} len: {len(list(class_max_dist.keys()))} / {len(embeddings)} sim: {triplet_similarity}')
-                # calculate if in range of some centroid other than real one
-                np_class_centroids_tiled = np.tile(y_embedding, (len(embeddings),1))
-                dists = CentroidClassificationUtils.get_distance(embeddings, np_class_centroids_tiled, triplet_similarity, mode)
-                distances_precomputed[y_idx] = dists
+                    np_class_centroids_tiled = np.tile(class_centroids[y_each], (len(emb_mem), 1))
+                    list_dists = CentroidClassificationUtils.get_distance(np_class_centroids_tiled, emb_mem, triplet_similarity, mode).tolist()
+                    list_dists = sorted(list_dists, reverse=False)
+                    list_dists = list_dists[:max(2, int(len(list_dists) * 0.9))] # drop 10 top percent embeddings as they could contain noise
+                    class_max_dist[y_each] = list_dists[-1] # last largest distance
 
-            if type == 'range':
-                for idx_emb, dist in enumerate(dists):
-                    if max_dist > dist:
-                        predicted[idx_emb][y_idx] += 1.0
-            else:
-                predicted[:,y_idx] = np.minimum(predicted[:,y_idx], dists[:]) # store for each class closest embedding with distance value
+        classes_size = int(np.max(y_list)) + 1
 
-        for y_idx in class_max_dist.keys():
-            process_class(y_idx)
+        # store distance matrix as memmap for optimization
+        path_dists_mem = f'{path_embeddings}/dists.mmap'
+        is_exist_dists_mem = os.path.exists(path_dists_mem)
+        dists_mem = np.memmap(
+            path_dists_mem,
+            mode='r' if is_exist_dists_mem else 'w+',
+            dtype=np.float16,
+            shape=(sample_count, classes_size))
 
-        if type == 'range':
-            # predicted sum can be 0 if none in the range
-            predicted = predicted /(np.sum(predicted, axis=1, keepdims=True) + 1e-18)
-        else:
-            idx_class = np.argmin(predicted, axis=1) # for each sample select closest distance
-            predicted = np.zeros_like(predicted) # init probabilities vector
-            predicted[np.arange(predicted.shape[0]), idx_class] = 1.0 # for each sample set prob 100% by columns
+        if not is_exist_dists_mem:
+            for idx_start, y_each in paths_embs_idx_path_pairs:
+                path_emb_json = f'{path_embeddings}/{y_each}.json'
+                path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
 
-        return torch.tensor(np.array(predicted)), torch.tensor(np.array(target)), torch.tensor(np.array(y_list)), class_max_dist, class_centroids, distances_precomputed
+                emb_json = FileUtils.loadJSON(path_emb_json)
+                emb_mem = np.memmap(
+                    path_emb_mem,
+                    mode='r',
+                    dtype=np.float16,
+                    shape=(emb_json['count'], embedding_size))
+
+                for idx_y in class_max_dist.keys():
+                    np_class_centroids_tiled = np.tile(class_centroids[idx_y], (emb_json['count'], 1))
+                    dists = CentroidClassificationUtils.get_distance(emb_mem, np_class_centroids_tiled, triplet_similarity, mode).tolist()
+                    dists_mem[idx_start:idx_start+emb_json['count'], idx_y] = dists[:]
+            dists_mem.flush()
+
+        # iterate through precomputed distances to add to data to meters
+        chunk_size = 1024
+        for idx_chunk_start in range(sample_count//chunk_size + 1):
+            idx_chunk_end = min(sample_count, idx_chunk_start + chunk_size)
+            chunk_each_size = idx_chunk_end - idx_chunk_start
+
+            for idx_y in class_max_dist.keys():
+                max_dist = class_max_dist[idx_y]
+
+                predicted = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
+                target = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
+                for idx_class in range(chunk_each_size):
+                    target[idx_class, y_list[idx_chunk_start+idx_class]] = 1.0
+
+                dists = dists_mem[idx_chunk_start:idx_chunk_end]
+
+                if type == 'range':
+                    for idx_emb, dist in enumerate(dists):
+                        if max_dist > dist:
+                            predicted[idx_emb, idx_y] += 1.0
+
+                    predicted = predicted / (np.sum(predicted, axis=1, keepdims=True) + 1e-18)
+                else:
+                    predicted[:,idx_y] = np.minimum(predicted[:,idx_y], dists[:]) # store for each class closest embedding with distance value
+
+                    idx_class = np.argmin(predicted, axis=1) # for each sample select closest distance
+                    predicted = np.zeros_like(predicted) # init probabilities vector
+                    predicted[np.arange(predicted.shape[0]), idx_class] = 1.0 # for each sample set prob 100% by columns
+
+                meter_acc.add(torch.FloatTensor(predicted), torch.FloatTensor(target))
+                meter_auc.add(torch.FloatTensor(predicted).permute(1, 0).data, torch.FloatTensor(target).permute(1, 0).data)
+
+        return class_max_dist, class_centroids, y_list, sample_count, paths_embs_idx_path_pairs
 
 

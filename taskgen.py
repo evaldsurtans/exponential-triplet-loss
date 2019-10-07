@@ -152,10 +152,21 @@ parser.add_argument(
     required=False)
 
 parser.add_argument(
+    '-hpc_mem',
+    help='HPC - override mem GB',
+    default=0,
+    type=int)
+
+parser.add_argument(
     '-datasource_exclude_train_class_ids',
     nargs='*',
     default=[],
     required=False)
+
+parser.add_argument(
+    '-is_restricted_memory',
+    default=False,
+    type=lambda x: (str(x).lower() == 'true'))
 
 parser.add_argument('-datasource', default='datasource_pytorch', type=str)
 
@@ -403,7 +414,10 @@ for idx_comb, params_comb in enumerate(grid):
                         fp.write(f'#PBS -l nodes=1:ppn={cpu_count}\n')
                         #fp.write(f'#PBS -l feature=centos7\n')
 
-                    fp.write(f'#PBS -l mem={cpu_count * 5}gb\n') #hpc limit pie 60g (normally)
+                    if args.hpc_mem > 0:
+                        fp.write(f'#PBS -l mem={args.hpc_mem}gb\n') #hpc limit pie 60g (normally)
+                    else:
+                        fp.write(f'#PBS -l mem={cpu_count * 5}gb\n') #hpc limit pie 60g (normally)
                     # fp.write(f'#PBS -l pmem=10gb\n') #without this goes to mem , nelietot
                     fp.write(f'#PBS -l walltime={walltime}:00:00\n\n')
 
@@ -433,6 +447,15 @@ for idx_comb, params_comb in enumerate(grid):
                     #fp.write(f'export MKL_NUM_THREADS={cpu_count}\n')
                     # http://www.diracprogram.org/doc/release-12/installation/mkl.html
                     #fp.write(f'export KMP_AFFINITY=granularity=fine,compact,1,0\n')
+
+                    if args.is_restricted_memory:
+                        max_mem_process = cpu_count * 5 * 1e9 # GB to B
+                        #fp.write(f'ulimit -Sm {int(max_mem_process*0.4/1000)}\n') # to KB
+                        #fp.write(f'ulimit -Hm {int(max_mem_process*0.9/1000)}\n')
+                        fp.write(f'ulimit -m {int(max_mem_process*0.9/1000)}\n')
+                        # fp.write(f'ulimit -v {int(max_mem_process*0.9/1000)}\n')
+                        # fp.write(f'ulimit -Sv {int(max_mem_process*0.4/1000)}\n') # to KB
+                        # fp.write(f'ulimit -Hv {int(max_mem_process*0.9/1000)}\n')
 
 
                     fp.write(f'cd {path_base}\n')

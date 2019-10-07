@@ -7,25 +7,30 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 # embedding_init
+
+# 33
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 1 \
--hpc_gpu_count 2 -hpc_cpu_count_for_gpu 16 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_20_model_13_hospital_exp13_vggface_full_rep_radam_fixed \
--batch_size 33 \
+-hpc_gpu_count 2 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report oct_4_model_13_hospital_exp13_vggface_full_rep_radam_fixed_gray_d \
+-hpc_mem 180 \
+-batch_size 240 90 \
 -triplet_positives 3 \
 -epochs_count 100 \
+-is_restricted_memory True \
+-datasource_workers 0 \
 -datasource datasource_memmap \
--datasource_max_class_count 500 1000 2000 \
--datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2 \
+-datasource_max_class_count 1000 \
+-datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2_128 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer radam \
--params_grid learning_rate datasource_max_class_count class_loss_coef \
+-params_grid learning_rate batch_size class_loss_coef \
 -embedding_norm unit_range \
 -triplet_similarity euclidean \
 -center_loss_min_count 500 \
 -class_loss_epochs_limit 100 \
--learning_rate 1e-5 1e-4 \
+-learning_rate 1e-4 1e-5 \
 -weight_decay 0 \
--datasource_is_grayscale False \
+-datasource_is_grayscale True \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \

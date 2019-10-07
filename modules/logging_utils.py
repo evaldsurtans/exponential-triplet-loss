@@ -1,6 +1,9 @@
 import logging
 import os
+import time
 from datetime import datetime
+import sys
+import traceback
 
 from modules.file_utils import FileUtils
 
@@ -51,3 +54,10 @@ class LoggingUtils:
     def error(message):
         LoggingUtils.check_and_add()
         logging.error(message)
+
+    @staticmethod
+    def exception(e):
+        LoggingUtils.error(str(e))
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        LoggingUtils.error('\n'.join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+        time.sleep(1)
