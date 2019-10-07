@@ -6,6 +6,7 @@ eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
+rm -Rf /tmp/exp_loss
 
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
@@ -13,6 +14,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
+-path_tmp_dir /tmp \
 -datasource_type emnist \
 -optimizer radam \
 -params_grid embedding_norm overlap_coef class_layers embedding_scale pos_loss_coef center_loss_coef \

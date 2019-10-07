@@ -18,6 +18,7 @@ import torchnet as tnt # pip install git+https://github.com/pytorch/tnt.git@mast
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from joblib import Parallel, delayed
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import tensorboardX
 import argparse
@@ -89,6 +90,31 @@ class CentroidClassificationUtils(object):
 
         return dist
 
+    @staticmethod
+    def process_dists(idx_start, y_each, path_embeddings, class_centroids, sample_count, classes_size, embedding_size, triplet_similarity, mode):
+        path_emb_json = f'{path_embeddings}/{y_each}.json'
+        path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+        path_dists_mem = f'{path_embeddings}/dists.mmap'
+
+        dists_mem = np.memmap(
+            path_dists_mem,
+            mode='r+',
+            dtype=np.float16,
+            shape=(sample_count, classes_size))
+
+        emb_json = FileUtils.loadJSON(path_emb_json)
+        emb_mem = np.memmap(
+            path_emb_mem,
+            mode='r',
+            dtype=np.float16,
+            shape=(emb_json['count'], embedding_size))
+
+        for idx_y in class_centroids.keys():
+            np_class_centroids_tiled = np.tile(class_centroids[idx_y], (emb_json['count'], 1))
+            dists = CentroidClassificationUtils.get_distance(emb_mem, np_class_centroids_tiled, triplet_similarity, mode).tolist()
+            dists_mem[idx_start:idx_start+emb_json['count'], idx_y] = dists[:]
+        dists_mem.flush()
+
 
     # @type = ['range', 'closest']
     # @mode = ['numpy', 'cuda', 'cpu']
@@ -118,7 +144,6 @@ class CentroidClassificationUtils(object):
             paths_embs_idx_path_pairs = []
             sample_count = 0
 
-            # TODO parallel
             for path_emb in paths_embs:
                 if path_emb.endswith('.json'):
                     y_each = int(os.path.basename(path_emb).split('.')[0])
@@ -157,36 +182,34 @@ class CentroidClassificationUtils(object):
             mode='r' if is_exist_dists_mem else 'w+',
             dtype=np.float16,
             shape=(sample_count, classes_size))
+        dists_mem.flush()
 
         if not is_exist_dists_mem:
-            for idx_start, y_each in paths_embs_idx_path_pairs:
-                path_emb_json = f'{path_embeddings}/{y_each}.json'
-                path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+            Parallel(n_jobs=multiprocessing.cpu_count() * 2)(
+                delayed(CentroidClassificationUtils.process_dists)(
+                    idx_start, y_each, path_embeddings, class_centroids, sample_count, classes_size, embedding_size, triplet_similarity, mode
+                ) for idx_start, y_each in paths_embs_idx_path_pairs)
+            dists_mem = np.memmap(
+                path_dists_mem,
+                mode='r' if is_exist_dists_mem else 'w+',
+                dtype=np.float16,
+                shape=(sample_count, classes_size))
 
-                emb_json = FileUtils.loadJSON(path_emb_json)
-                emb_mem = np.memmap(
-                    path_emb_mem,
-                    mode='r',
-                    dtype=np.float16,
-                    shape=(emb_json['count'], embedding_size))
 
-                for idx_y in class_max_dist.keys():
-                    np_class_centroids_tiled = np.tile(class_centroids[idx_y], (emb_json['count'], 1))
-                    dists = CentroidClassificationUtils.get_distance(emb_mem, np_class_centroids_tiled, triplet_similarity, mode).tolist()
-                    dists_mem[idx_start:idx_start+emb_json['count'], idx_y] = dists[:]
-            dists_mem.flush()
-
-        # iterate through precomputed distances to add to data to meters
+        # iterate through precomputed distances to add to data to meters for mem optimization
         chunk_size = 1024
         for idx_chunk_start in range(sample_count//chunk_size + 1):
             idx_chunk_end = min(sample_count, idx_chunk_start + chunk_size)
             chunk_each_size = idx_chunk_end - idx_chunk_start
 
+            if type == 'range':
+                predicted = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
+            else:
+                predicted = np.ones( (chunk_each_size, classes_size), dtype=np.float) * 1e9
+            target = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
+
             for idx_y in class_max_dist.keys():
                 max_dist = class_max_dist[idx_y]
-
-                predicted = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
-                target = np.zeros( (chunk_each_size, classes_size), dtype=np.float)
                 for idx_class in range(chunk_each_size):
                     target[idx_class, y_list[idx_chunk_start+idx_class]] = 1.0
 
@@ -194,19 +217,25 @@ class CentroidClassificationUtils(object):
 
                 if type == 'range':
                     for idx_emb, dist in enumerate(dists):
-                        if max_dist > dist:
+                        if max_dist > dist[idx_y]:
                             predicted[idx_emb, idx_y] += 1.0
-
-                    predicted = predicted / (np.sum(predicted, axis=1, keepdims=True) + 1e-18)
                 else:
-                    predicted[:,idx_y] = np.minimum(predicted[:,idx_y], dists[:]) # store for each class closest embedding with distance value
+                    predicted[:,idx_y] = np.minimum(predicted[:,idx_y], dists[:, idx_y]) # store for each class closest embedding with distance value
 
-                    idx_class = np.argmin(predicted, axis=1) # for each sample select closest distance
-                    predicted = np.zeros_like(predicted) # init probabilities vector
-                    predicted[np.arange(predicted.shape[0]), idx_class] = 1.0 # for each sample set prob 100% by columns
+            if type == 'range':
+                predicted = predicted / (np.sum(predicted, axis=1, keepdims=True) + 1e-18)
+            else:
+                # TODO softmax/hardmax based accuracy
+                idx_class = np.argmin(predicted, axis=1) # for each sample select closest distance
+                predicted = np.zeros_like(predicted) # init probabilities vector
+                predicted[np.arange(predicted.shape[0]), idx_class] = 1.0 # for each sample set prob 100% by columns
+            y_chunk = np.array(y_list[idx_chunk_start:idx_chunk_end])
+            meter_acc.add(predicted, y_chunk)
 
-                meter_acc.add(torch.FloatTensor(predicted), torch.FloatTensor(target))
-                meter_auc.add(torch.FloatTensor(predicted).permute(1, 0).data, torch.FloatTensor(target).permute(1, 0).data)
+            # AssertionError: targets should be binary (0, 1)
+            idxes_classes = np.argmax(predicted, axis=1)
+            target_tp = np.array(np.equal(y_chunk, idxes_classes), dtype=np.int)
+            meter_auc.add(np.max(predicted, axis=1), target_tp)
 
         return class_max_dist, class_centroids, y_list, sample_count, paths_embs_idx_path_pairs
 

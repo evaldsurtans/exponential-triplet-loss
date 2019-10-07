@@ -1,3 +1,6 @@
+import multiprocessing
+from itertools import chain
+
 import matplotlib
 from torch.autograd import Variable
 
@@ -74,6 +77,8 @@ parser.add_argument('-is_model_encoder_pretrained', default=True, type=lambda x:
 parser.add_argument('-layers_embedding_type', default='last', type=str) #refined, pooled, last
 parser.add_argument('-layers_embedding_dropout', default=0.0, type=float)
 parser.add_argument('-is_layers_embedding_batchnorm', default=False, type=lambda x: (str(x).lower() == 'true'))
+
+parser.add_argument('-path_tmp_dir', default='./tmp', type=str)
 
 parser.add_argument('-pre_trained_model', default='./tasks/test_dec29_enc_123_123.json', type=str)
 parser.add_argument('-is_pretrained_locked', default=False, type=lambda x: (str(x).lower() == 'true'))
@@ -190,7 +195,7 @@ parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 
 
 parser.add_argument('-max_embeddings_projector_classes', default=50, type=int) # 0 = unlimited
 parser.add_argument('-max_embeddings_projector_samples', default=100, type=int) # 0 = unlimited
-parser.add_argument('-embedding_calculation_threads', default=8, type=int)
+parser.add_argument('-embedding_calculation_threads', default=16, type=int)
 
 args, args_other = parser.parse_known_args()
 
@@ -881,7 +886,7 @@ meters = dict(
 #torch.autograd.set_detect_anomaly(True)
 
 LoggingUtils.info(f'batch count train: {len(data_loader_train)} test: {len(data_loader_test)}')
-path_embeddings = f'./tmp/{args.id}/embeddings'
+path_embeddings = f'{args.path_tmp_dir}/exp_loss/{args.id}'
 FileUtils.createDir(path_embeddings)
 
 
@@ -995,47 +1000,50 @@ for epoch in range(1, args.epochs_count + 1):
                     list_x_for_projector.append(None)
 
             def process_y_outputs(y_each, label, output_each, x_each):
-                emb_json = {
-                    'label': int(label),
-                    'count': 0
-                }
-                path_emb_lock = f'{path_embeddings}/{y_each}.lock'
-                if not os.path.exists(path_emb_lock):
-                    Path(path_emb_lock).touch()
+                try:
+                    emb_json = {
+                        'label': int(label),
+                        'count': 0
+                    }
+                    path_emb_lock = f'{path_embeddings}/{y_each}.lock'
+                    if not os.path.exists(path_emb_lock):
+                        Path(path_emb_lock).touch()
 
-                with open(path_emb_lock, 'r') as fp_lock:
-                    FileUtils.lock_file(fp_lock)
-                    path_emb_json = f'{path_embeddings}/{y_each}.json'
-                    path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
-                    if os.path.exists(path_emb_json):
-                        emb_json = FileUtils.loadJSON(path_emb_json)
+                    with open(path_emb_lock, 'r') as fp_lock:
+                        FileUtils.lock_file(fp_lock)
+                        path_emb_json = f'{path_embeddings}/{y_each}.json'
+                        path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+                        if os.path.exists(path_emb_json):
+                            emb_json = FileUtils.loadJSON(path_emb_json)
 
-                    emb_json['count'] += 1
-                    emb_mem = np.memmap(
-                        path_emb_mem,
-                        mode='r+' if os.path.exists(path_emb_mem) else 'w+',
-                        dtype=np.float16,
-                        shape=(emb_json['count'], args.embedding_size))
-
-                    emb_mem[emb_json['count']-1] = np.array(output_each)
-                    emb_mem.flush()
-
-                    if x_each is not None:
-                        path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
-                        size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
-                        emb_img_mem = np.memmap(
-                            path_emb_img_mem,
-                            mode='r+' if os.path.exists(path_emb_img_mem) else 'w+',
+                        emb_json['count'] += 1
+                        emb_mem = np.memmap(
+                            path_emb_mem,
+                            mode='r+' if os.path.exists(path_emb_mem) else 'w+',
                             dtype=np.float16,
-                            shape=(emb_json['count'], size_img_flattened))
+                            shape=(emb_json['count'], args.embedding_size))
 
-                        emb_img_mem[emb_json['count']-1] = np.array(x_each).flatten()
-                        emb_img_mem.flush()
+                        emb_mem[emb_json['count']-1] = np.array(output_each)
+                        emb_mem.flush()
 
-                    FileUtils.writeJSON(path_emb_json, emb_json)
-                    FileUtils.unlock_file(fp_lock)
+                        if x_each is not None:
+                            path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
+                            size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
+                            emb_img_mem = np.memmap(
+                                path_emb_img_mem,
+                                mode='r+' if os.path.exists(path_emb_img_mem) else 'w+',
+                                dtype=np.float16,
+                                shape=(emb_json['count'], size_img_flattened))
 
-            Parallel(n_jobs=args.embedding_calculation_threads)(
+                            emb_img_mem[emb_json['count']-1] = np.array(x_each).flatten()
+                            emb_img_mem.flush()
+
+                        FileUtils.writeJSON(path_emb_json, emb_json)
+                        FileUtils.unlock_file(fp_lock)
+                except Exception as e:
+                    LoggingUtils.exception(e)
+
+            Parallel(n_jobs=multiprocessing.cpu_count() * 4, backend="threading")(
                 delayed(process_y_outputs)(
                     y_each,
                     data_loader.dataset.classes[y_each],
@@ -1104,39 +1112,58 @@ for epoch in range(1, args.epochs_count + 1):
             paths_embs_idx_path_pairs=paths_embs_idx_path_pairs)
 
         #AFTER EPOCH: sampling of embeddings for projector
-        #TODO parallel
         paths_embs = FileUtils.listSubFiles(path_embeddings)
-        for path_emb in paths_embs:
-            if path_emb.endswith('_img.mmap'):
-                y_each = int(os.path.basename(path_emb).split('_')[0])
-                path_emb_json = f'{path_embeddings}/{y_each}.json'
-                path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
-                path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
 
-                emb_json = FileUtils.loadJSON(path_emb_json)
-                emb_mem = np.memmap(
-                    path_emb_mem,
-                    mode='r',
-                    dtype=np.float16,
-                    shape=(emb_json['count'], args.embedding_size))
+        def process_embs_for_projector(path_emb):
+            list_emb_mem = []
+            list_emb_img = []
+            list_labels = []
 
-                size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
-                emb_img_mem = np.memmap(
-                    path_emb_img_mem,
-                    mode='r',
-                    dtype=np.float16,
-                    shape=(emb_json['count'], size_img_flattened))
-                emb_img = emb_img_mem.reshape((emb_json['count'], args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector))
+            y_each = int(os.path.basename(path_emb).split('_')[0])
+            path_emb_json = f'{path_embeddings}/{y_each}.json'
+            path_emb_mem = f'{path_embeddings}/{y_each}.mmap'
+            path_emb_img_mem = f'{path_embeddings}/{y_each}_img.mmap'
 
-                try:
-                    # label_img: :math:`(N, C, H, W)
-                    tensorboard_writer.add_embedding(
-                        mat=torch.FloatTensor(emb_mem),
-                        label_img=torch.FloatTensor(emb_img).unsqueeze(dim=1),
-                        metadata=[emb_json['label'] for _ in range(emb_json['count'])],
-                        global_step=epoch, tag=f'{meter_prefix}_emb')
-                except Exception as e:
-                    LoggingUtils.exception(e)
+            emb_json = FileUtils.loadJSON(path_emb_json)
+            emb_mem = np.memmap(
+                path_emb_mem,
+                mode='r',
+                dtype=np.float16,
+                shape=(emb_json['count'], args.embedding_size))
+
+            size_img_flattened = args.img_size_embeddings_class_for_projector * args.img_size_embeddings_class_for_projector
+            emb_img_mem = np.memmap(
+                path_emb_img_mem,
+                mode='r',
+                dtype=np.float16,
+                shape=(emb_json['count'], size_img_flattened))
+            emb_img = emb_img_mem.reshape((emb_json['count'], args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector))
+
+            list_emb_mem.append(emb_mem)
+            list_emb_img.append(emb_img)
+            list_labels += [emb_json['label'] for _ in range(emb_json['count'])]
+
+            return list_emb_mem, list_emb_img, list_labels
+
+        result = Parallel(n_jobs=args.embedding_calculation_threads)(
+                delayed(process_embs_for_projector)(
+                    path_emb
+                ) for path_emb in paths_embs if path_emb.endswith('_img.mmap')
+            )
+        list_emb_mem, list_emb_img, list_labels = zip(*result)
+        list_emb_mem = list(chain(*list_emb_mem))
+        list_emb_img = list(chain(*list_emb_img))
+        list_labels = list(chain(*list_labels))
+
+        try:
+            # label_img: :math:`(N, C, H, W)
+            tensorboard_writer.add_embedding(
+                mat=torch.FloatTensor(np.concatenate(list_emb_mem, axis=0)),
+                label_img=torch.FloatTensor(np.concatenate(list_emb_img, axis=0)).unsqueeze(dim=1),
+                metadata=list_labels,
+                global_step=epoch, tag=f'{meter_prefix}_emb')
+        except Exception as e:
+            LoggingUtils.exception(e)
 
         # sampling of closest class embedding distances pairs
         hist_positives_dist_closest = []
@@ -1351,5 +1378,5 @@ for epoch in range(1, args.epochs_count + 1):
             logging_utils.info(f'{args.name} early stopping')
             break
 
-
+FileUtils.deleteDir(path_embeddings, is_delete_dir_path=True)
 tensorboard_writer.close()
