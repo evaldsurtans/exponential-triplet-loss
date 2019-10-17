@@ -6,19 +6,20 @@ eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
+
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report oct_7_model_12_hospital_exp13_emnist_inf_rep_inits \
+-report oct_10_model_12_hospital_exp13_emnist_inf_rep_inits \
 -batch_size 33 \
 -triplet_positives 3 \
 -epochs_count 100 \
--path_tmp_dir /tmp \
+-path_tmp_dir /scratch \
 -datasource_type emnist \
 -optimizer radam \
 -params_grid embedding_norm overlap_coef class_layers embedding_scale pos_loss_coef center_loss_coef \
 -embedding_norm unit_range_bounce_limit unit_range \
 -triplet_similarity euclidean \
--embedding_init zeros \
+-embedding_init xavier \
 -center_loss_min_count 500 100 \
 -embedding_scale 2.0 1.0 \
 -class_layers 1 0 \
@@ -39,9 +40,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -is_model_encoder_pretrained True \
 -model_encoder densenet161 \
 -embedding_layers_last_norm none \
--max_embeddings_per_class_test 0 \
--max_embeddings_per_class_train 0 \
--max_embeddings_histograms 0 \
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
@@ -51,9 +49,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -leaky_relu_slope 0.01 \
 -embedding_size 128 \
 -embedding_layers_last_norm none \
--max_embeddings_per_class_test 0 \
--max_embeddings_per_class_train 0 \
--max_embeddings_histograms 0 \
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
@@ -82,7 +77,8 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -datasource datasource_pytorch \
 -is_hpc True \
 -is_quick_test False \
--single_task False
+-single_task True
+
 
 
 # euclidean unit_range
