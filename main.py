@@ -765,41 +765,37 @@ if __name__ == '__main__':
         outputs_by_centers = []
         list_y = to_numpy(y).tolist()
 
-        # centers_of_classes_by_y => all centers from current epoch
-        for idx, each_y in enumerate(list_y):
-            if each_y not in centers_of_classes_by_y:
-                centers_of_classes_by_y[each_y] = {
-                    'sum': np.zeros((args.embedding_size, )), # numpy
-                    'center': np.zeros((args.embedding_size, )), # numpy
-                    'count': 0,
-                    'max_dist': 0
-                }
-            centers_of_classes_by_y[each_y]['sum'] += to_numpy(output[idx])
-            centers_of_classes_by_y[each_y]['count'] += 1
-            center = centers_of_classes_by_y[each_y]['sum'] / centers_of_classes_by_y[each_y]['count']
-            centers_of_classes_by_y[each_y]['center'] = center
-            centers_of_classes_by_y[each_y]['max_dist'] = max(
-                centers_of_classes_by_y[each_y]['max_dist'],
-                get_distance(torch.FloatTensor(center), output[idx], args.triplet_similarity, mode=args.device)
-            )
-
-            if args.is_center_loss and args.center_loss_coef > 0:
-                centers.append(torch.FloatTensor(center))
-                outputs_by_centers.append(output[idx])
-
         loss_emb = loss.detach().clone()
         loss_center = None
         if args.is_center_loss and args.center_loss_coef > 0:
+            # centers_of_classes_by_y => all centers from current epoch
+            for idx, each_y in enumerate(list_y):
+                if each_y not in centers_of_classes_by_y:
+                    centers_of_classes_by_y[each_y] = {
+                        'sum': np.zeros((args.embedding_size, )), # numpy
+                        'center': np.zeros((args.embedding_size, )), # numpy
+                        'count': 0,
+                        'max_dist': 0
+                    }
+                centers_of_classes_by_y[each_y]['sum'] += to_numpy(output[idx])
+                centers_of_classes_by_y[each_y]['count'] += 1
+                center = centers_of_classes_by_y[each_y]['sum'] / centers_of_classes_by_y[each_y]['count']
+                centers_of_classes_by_y[each_y]['center'] = center
+                if args.is_center_loss and args.center_loss_coef > 0:
+                    centers.append(torch.FloatTensor(center))
+                    outputs_by_centers.append(output[idx])
+
             if len(centers) > 0:
                 centers = torch.stack(centers).to(args.device)
                 outputs_by_centers = torch.stack(outputs_by_centers).to(args.device)
-                if args.triplet_similarity == 'cos':
-                    centers_dist = 1. - F.cosine_similarity(centers, outputs_by_centers, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
-                else:
-                    centers_dist = F.pairwise_distance(centers, outputs_by_centers, eps=1e-20) # 0 .. 2
 
-                if args.triplet_similarity == 'euclidean_2':
-                    centers_dist = centers_dist ** 2
+                centers_dist = get_distance(centers, outputs_by_centers, args.triplet_similarity, mode=args.device)
+                np_centers_dist = to_numpy(centers_dist)
+                for idx, each_y in enumerate(list_y):
+                    centers_of_classes_by_y[each_y]['max_dist'] = max(
+                        centers_of_classes_by_y[each_y]['max_dist'],
+                        np_centers_dist[idx]
+                    )
 
                 if args.is_center_loss:
                     if args.triplet_loss == 'exp13':

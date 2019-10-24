@@ -77,7 +77,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -datasource datasource_pytorch \
 -is_hpc True \
 -is_quick_test False \
--single_task True
+-single_task False
 
 
 

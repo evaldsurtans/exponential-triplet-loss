@@ -7,7 +7,7 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
-python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
+python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
 -report oct_24_rep_model_12_dobe_exp13_fassion_128_center_fix_NORM \
 -batch_size 33 \
@@ -15,9 +15,9 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -epochs_count 100 \
 -datasource_type fassion_mnist \
 -optimizer adam \
--params_grid embedding_norm triplet_similarity \
--embedding_norm l2 unit_range \
--triplet_similarity cos euclidean \
+-params_grid embedding_norm \
+-embedding_norm l2 unit_range unit_range_bounce_2 unit_range_bounce_limit unit_range_bounce unit_range_inf \
+-triplet_similarity euclidean \
 -embedding_init xavier \
 -center_loss_min_count 500 \
 -learning_rate 1e-4 \
@@ -71,6 +71,7 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -is_hpc True \
 -is_quick_test False \
 -single_task False
+
 
 
 # euclidean unit_range
