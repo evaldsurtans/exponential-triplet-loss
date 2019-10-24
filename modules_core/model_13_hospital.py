@@ -278,5 +278,7 @@ class Model(torch.nn.Module):
             self.args.embedding_norm,
             self.args.embedding_scale)
 
-        output_class = self.layers_classification.forward(output_norm)
+        output_class = None
+        if self.training:
+            output_class = self.layers_classification.forward(output_norm)
         return output_norm, output_class

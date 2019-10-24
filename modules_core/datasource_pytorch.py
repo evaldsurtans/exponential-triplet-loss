@@ -200,12 +200,14 @@ def get_data_loaders(args):
     logging.info('train dataset')
     sampler_train = torch.utils.data.sampler.SequentialSampler(dataset_train) # important for triplet sampling to work correctly
     data_loader_train = torch.utils.data.DataLoader(dataset_train,
+                                                    drop_last=True,
                                                     batch_size=args.batch_size,
                                                     sampler=sampler_train,
                                                     num_workers=args.datasource_workers)
     logging.info('test dataset')
     sampler_test = torch.utils.data.sampler.SequentialSampler(dataset_test) # important for triplet sampling to work correctly
     data_loader_test = torch.utils.data.DataLoader(dataset_test,
+                                                   drop_last=True,
                                                    batch_size=args.batch_size,
                                                    sampler=sampler_test,
                                                    num_workers=args.datasource_workers)

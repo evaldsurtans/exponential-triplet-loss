@@ -56,31 +56,30 @@ def get_distance(x1, x2, triplet_similarity, mode='numpy'):
             is_item = True
 
     if mode != 'numpy':
-        x1 = torch.FloatTensor(x1).to(mode)
-        x2 = torch.FloatTensor(x2).to(mode)
+        if isinstance(x1, np.ndarray):
+            x1 = torch.FloatTensor(x1).to(mode)
+            x2 = torch.FloatTensor(x2).to(mode)
 
     # latest needed: conda install -c anaconda scikit-learn
-    with sklearn.config_context(working_memory=1024):
-        if triplet_similarity == 'cos':
-            if isinstance(x1, np.ndarray):
+    if isinstance(x1, np.ndarray):
+        with sklearn.config_context(working_memory=1024):
+            if triplet_similarity == 'cos':
                 dist = np.zeros((0, ))
                 for each in sklearn.metrics.pairwise.pairwise_distances_chunked(x1, x2, metric="cosine", n_jobs=n_jobs):
                     dist = np.concatenate((dist, np.diag(each)), axis=0)
             else:
-                dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
-        else:
-            if isinstance(x1, np.ndarray):
                 dist = np.zeros((0, ))
                 for each in sklearn.metrics.pairwise.pairwise_distances_chunked(x1, x2, metric="euclidean", n_jobs=n_jobs):
                     dist = np.concatenate((dist, np.diag(each)), axis=0)
-            else:
-                dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
-
-            if triplet_similarity == 'euclidean_2':
-                dist = dist ** 2
+    else:
+        if triplet_similarity == 'cos':
+            dist = 1. - F.cosine_similarity(x1, x2, dim=1, eps=1e-20) # -1 .. 1 => 0 .. 2
+        else:
+            dist = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
     if mode != 'numpy':
-        dist = dist.to('cpu').numpy()
+        if isinstance(x1, np.ndarray):
+            dist = dist.to('cpu').numpy()
 
     if is_item:
         dist = dist[0]
