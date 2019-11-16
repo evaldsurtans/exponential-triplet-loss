@@ -190,7 +190,7 @@ parser.add_argument('-is_quick_test', default=False, type=lambda x: (str(x).lowe
 
 parser.add_argument('-max_embeddings_histograms', default=1000, type=int)
 parser.add_argument('-max_embeddings_class_for_projector', default=50, type=int)
-parser.add_argument('-img_size_embeddings_class_for_projector', default=64, type=int)
+parser.add_argument('-img_size_embeddings_class_for_projector', default=32, type=int)
 parser.add_argument('-max_embeddings_per_class_test', default=500, type=int) # 0 = unlimited
 parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 0 = unlimited
 

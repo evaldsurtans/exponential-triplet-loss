@@ -9,17 +9,17 @@ cd ~/Documents/fassion_minst/
 # embedding_init
 
 # 33
-python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 1 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report oct_28_model_13_hospital_exp13_vggface_full_rep_radam_fixed_gray_d \
+python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 1 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
+-report oct_28_model_13_hospital_exp13_vggface_full_rep_radam_fixed_colored \
 -batch_size 90 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -is_restricted_memory True \
 -datasource_workers 1 \
 -datasource datasource_memmap \
--datasource_max_class_count 1000 2000 \
--datasource_is_grayscale True \
+-datasource_max_class_count 2000 1000 \
+-datasource_is_grayscale False \
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2_128 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer radam \

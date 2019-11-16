@@ -7,6 +7,7 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
+# overlap_coef
 python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
 -report oct_24_rep_model_12_dobe_exp13_fassion_128_center_fix_NORM \
@@ -15,8 +16,8 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -epochs_count 100 \
 -datasource_type fassion_mnist \
 -optimizer adam \
--params_grid embedding_norm \
--embedding_norm l2 unit_range unit_range_bounce_2 unit_range_bounce_limit unit_range_bounce unit_range_inf \
+-params_grid embedding_norm weight_decay \
+-embedding_norm unit_range unit_range_bounce_limit \
 -triplet_similarity euclidean \
 -embedding_init xavier \
 -center_loss_min_count 500 \
@@ -27,8 +28,8 @@ python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
 -class_loss_coef 1.0 \
--weight_decay 0 \
--overlap_coef 1.5 \
+-weight_decay 0 1e-4 1e-5 \
+-overlap_coef 0.0 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
