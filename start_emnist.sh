@@ -7,31 +7,33 @@ source activate conda_env
 cd ~/Documents/fassion_minst/
 
 
+
 python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_process_count 4 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report oct_24_rep_model_12_hospital_exp13_emnist_inf_rep_inits \
--batch_size 33 \
+-report dec_5_rep_model_12_hospital_exp13_emnist_inf_rep_inits \
+-batch_size 33 90 \
 -triplet_positives 3 \
 -epochs_count 100 \
 -path_tmp_dir /scratch \
 -datasource_type emnist \
 -optimizer radam \
--params_grid embedding_norm overlap_coef class_layers embedding_scale pos_loss_coef center_loss_coef \
--embedding_norm unit_range_bounce_limit unit_range \
+-params_grid embedding_norm overlap_coef class_loss_coef center_loss_coef filter_samples batch_size \
+-embedding_norm unit_range_bounce_limit unit_range l2 \
 -triplet_similarity euclidean \
 -embedding_init xavier \
--center_loss_min_count 500 100 \
--embedding_scale 2.0 1.0 \
--class_layers 1 0 \
+-center_loss_min_count 500 \
+-filter_samples none hard \
+-embedding_scale 1.0 \
+-class_layers 1 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
--pos_loss_coef 1.0 2.0 \
+-pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 2.0 \
--class_loss_coef 1.0 \
+-center_loss_coef 1.0 0.0 \
+-class_loss_coef 1.0 0.0 \
 -weight_decay 0 \
--overlap_coef 40.0 0.0 \
+-overlap_coef 40.0 0.0 80.0 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
@@ -68,7 +70,6 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu v100 -hpc_queue batch -hpc_gpu_proc
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
 -triplet_sampler triplet_sampler_4 \

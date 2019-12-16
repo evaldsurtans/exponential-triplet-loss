@@ -194,8 +194,8 @@ parser.add_argument('-img_size_embeddings_class_for_projector', default=32, type
 parser.add_argument('-max_embeddings_per_class_test', default=500, type=int) # 0 = unlimited
 parser.add_argument('-max_embeddings_per_class_train', default=500, type=int) # 0 = unlimited
 
-parser.add_argument('-max_embeddings_projector_classes', default=50, type=int) # 0 = unlimited
-parser.add_argument('-max_embeddings_projector_samples', default=100, type=int) # 0 = unlimited
+parser.add_argument('-max_embeddings_projector_classes', default=10, type=int) # 0 = unlimited
+parser.add_argument('-max_embeddings_projector_samples', default=20, type=int) # 0 = unlimited
 
 args, args_other = parser.parse_known_args()
 
@@ -1114,7 +1114,11 @@ if __name__ == '__main__':
                         if each_y in list_projector_classes_counts:
                             # max 100 per class
                             if list_projector_classes_counts[each_y] < args.max_embeddings_projector_samples:
-                                x_each = to_numpy(x[idx_y][0])
+                                if x.size(1) >= 3:
+                                    x_each = to_numpy(0.299 * x[idx_y][0] + 0.587 * x[idx_y][1] + 0.114 * x[idx_y][2])
+                                else:
+                                    # convert to grayscale
+                                    x_each = to_numpy(x[idx_y][0])
                                 x_each = resize(x_each, (args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector)) # resize for smaller resolution
 
                                 list_projector_imgs.append(x_each)

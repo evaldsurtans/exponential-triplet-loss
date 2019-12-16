@@ -54,9 +54,6 @@ class TripletSampler(object):
             else:
                 distances = F.pairwise_distance(x1, x2, eps=1e-20) # 0 .. 2
 
-                if self.args.triplet_similarity == 'euclidean_2':
-                    distances = distances ** 2
-
             distances_batch.append(distances)
 
         return torch.stack(distances_batch)
@@ -152,7 +149,7 @@ class TripletSampler(object):
                         negative_dist = anchor_distances[idx_negative]
                         negative = output[idx_negative]
 
-            if 'abs_margin_asym' in self.args.filter_samples:
+            if 'abs_margin_asym' in self.args.filter_samples or 'exp' in self.args.triplet_loss:
                 if negative is not None:
                     negatives_dist.append(negative_dist)
                 if positive is not None:

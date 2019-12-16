@@ -6,12 +6,10 @@ eval "$(conda shell.bash hook)"
 source activate conda_env
 cd ~/Documents/fassion_minst/
 
-# embedding_init
 
-# 33
-python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 1 \
+python taskgen.py -repeat 3 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 1 \
 -hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 12 -hpc_gpu_max_queue 9999 -device cuda \
--report oct_28_model_13_hospital_exp13_vggface_full_rep_radam_fixed_colored \
+-report nov_19_model_13_hospital_exp13_vggface_full_rep_radam_fixed_colored \
 -batch_size 90 \
 -triplet_positives 3 \
 -epochs_count 100 \
@@ -23,18 +21,18 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -datasource_path_memmaps /mnt/home/evaldsu/data_raw/vggface2_128 \
 -early_stopping_delta_percent 1e-3 \
 -optimizer radam \
--params_grid learning_rate embedding_norm class_loss_coef datasource_max_class_count \
--embedding_norm unit_range unit_range_bounce_limit \
+-params_grid embedding_norm datasource_max_class_count \
+-embedding_norm unit_range_bounce_limit unit_range unit_range_bounce unit_range_inf \
 -triplet_similarity euclidean \
 -center_loss_min_count 500 \
 -class_loss_epochs_limit 100 \
--learning_rate 1e-4 1e-5 \
+-learning_rate 1e-5 \
 -weight_decay 1e-4 \
 -class_layers 1 \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
 -center_loss_coef 1.0 \
--class_loss_coef 0.0 1.0 \
+-class_loss_coef 1.0 \
 -embedding_init xavier \
 -overlap_coef 0.0 \
 -embedding_scale 1.0 \

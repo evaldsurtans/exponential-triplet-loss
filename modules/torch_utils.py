@@ -70,28 +70,20 @@ def normalize_output(output_emb, embedding_norm, embedding_scale=1.0):
         ones_norm = torch.ones_like(div_norm)
         scaler = torch.where(norm > embedding_scale, div_norm, ones_norm)
         output_norm = output_emb * scaler
-    elif embedding_norm == 'unit_range_inf':
-        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
-        out_unit = output_emb/norm
-        inf_replaced = out_unit * torch.fmod(rounded(norm, 4), embedding_scale) - embedding_scale * out_unit
-        output_norm = torch.where(norm > embedding_scale, inf_replaced, output_emb)
-    elif embedding_norm == 'unit_range_bounce':
-        norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
-        out_unit = output_emb/norm
-        bounce_replaced = embedding_scale * out_unit - out_unit * torch.fmod(rounded(norm, 4), embedding_scale)
-        output_norm = torch.where(norm > embedding_scale, bounce_replaced, output_emb)
     elif embedding_norm == 'unit_range_bounce_limit':
+        eps = 1e-20
         norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
         out_unit = output_emb/norm
-        bounce_count = (norm - 1e-20) // embedding_scale
-        bounce_limit = out_unit * (1.0 - 1e-20)
+        bounce_count = (norm - eps) // embedding_scale
+        bounce_limit = out_unit * eps
         bounce_reminder = norm - bounce_count * embedding_scale
         bounce_replaced = torch.where(bounce_count >= 2.0, bounce_limit, embedding_scale * out_unit - out_unit * bounce_reminder)
         output_norm = torch.where(norm > embedding_scale, bounce_replaced, output_emb)
-    elif embedding_norm == 'unit_range_bounce_2':
+    elif embedding_norm == 'unit_range_bounce':
         norm = torch.norm(output_emb.detach(), p=2, dim=1, keepdim=True)
+        eps = 1e-20
         out_unit = output_emb/norm
-        bounce_count = (norm - 1e-20) // embedding_scale
+        bounce_count = (norm - eps) // embedding_scale
         bounce_reminder = norm - bounce_count * embedding_scale
         bounce_replaced = torch.where(torch.fmod(bounce_count, 2) != 0, embedding_scale * out_unit - out_unit * bounce_reminder, out_unit * bounce_reminder - embedding_scale * out_unit)
         output_norm = torch.where(norm > embedding_scale, bounce_replaced, output_emb)
