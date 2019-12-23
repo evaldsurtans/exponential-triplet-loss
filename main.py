@@ -1119,6 +1119,8 @@ if __name__ == '__main__':
                                 else:
                                     # convert to grayscale
                                     x_each = to_numpy(x[idx_y][0])
+
+                                x_each = (2*x_each / (x_each.max() - x_each.min()))-1.0 # scale -1..1
                                 x_each = np.array(x_each, dtype=np.float)
                                 x_each = resize(x_each, (args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector)) # resize for smaller resolution
 
