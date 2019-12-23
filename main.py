@@ -1119,6 +1119,7 @@ if __name__ == '__main__':
                                 else:
                                     # convert to grayscale
                                     x_each = to_numpy(x[idx_y][0])
+                                x_each = np.array(x_each, dtype=np.float)
                                 x_each = resize(x_each, (args.img_size_embeddings_class_for_projector, args.img_size_embeddings_class_for_projector)) # resize for smaller resolution
 
                                 list_projector_imgs.append(x_each)
@@ -1175,51 +1176,6 @@ if __name__ == '__main__':
                 except Exception as e:
                     LoggingUtils.exception(e)
 
-                # TODO
-                # try:
-                #     classes_size = int(np.max(data_loader.dataset.classes)) + 1
-                #     dists_mem = np.memmap(
-                #         f'{path_embeddings}/dists.mmap',
-                #         mode='r',
-                #         dtype=np.float16,
-                #         shape=(sample_count, classes_size))
-                #
-                #     # sampling of closest class embedding distances pairs
-                #     hist_positives_dist_closest = []
-                #     hist_negatives_dist_closest = []
-                #     for idx_key_a, key_a in enumerate(class_centroids):
-                #
-                #         closest_key_b = key_a
-                #         closest_dist = float('Inf')
-                #
-                #         for idx_key_b in range(idx_key_a+1, len(class_centroids)):
-                #             key_b = y_list[idx_key_b]
-                #
-                #             # find closest class
-                #             dist = get_distance(class_centroids[key_a], class_centroids[key_b], args.triplet_similarity, mode=args.device)
-                #             if closest_dist > dist:
-                #                 closest_dist = dist
-                #                 closest_key_b = key_b
-                #
-                #         # closest class found
-                #         if closest_key_b != key_a:
-                #             pair_a = next(filter(lambda it: it[1] == key_a, paths_embs_idx_path_pairs), None)
-                #             pair_b = next(filter(lambda it: it[1] == closest_key_b, paths_embs_idx_path_pairs), None)
-                #
-                #             def load_dists(pair, key_center):
-                #                 idx_start, y_each = pair
-                #                 path_emb_json = f'{path_embeddings}/{y_each}.json'
-                #                 emb_json = FileUtils.loadJSON(path_emb_json)
-                #                 return dists_mem[idx_start:idx_start+emb_json['count'], key_center].tolist()
-                #
-                #             hist_positives_dist_closest += load_dists(pair_a, key_a)
-                #             hist_negatives_dist_closest += load_dists(pair_b, key_a)
-                #
-                #     tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_pos', np.array(hist_positives_dist_closest), epoch, bins=histogram_bins)
-                #     tensorboard_writer.add_histogram(f'hist_{meter_prefix}_dist_closest_neg', np.array(hist_negatives_dist_closest), epoch, bins=histogram_bins)
-                #     tensorboard_utils.addHistogramsTwo(np.array(hist_positives_dist_closest), np.array(hist_negatives_dist_closest), f'hist_{meter_prefix}_closest', epoch)
-                # except Exception as e:
-                #     LoggingUtils.exception(e)
 
                 state[f'{meter_prefix}_negative_max'] = negative_max
                 state[f'{meter_prefix}_acc_range'] = meters[f'{meter_prefix}_acc_range'].value()[0]

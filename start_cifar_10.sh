@@ -9,38 +9,39 @@ cd ~/Documents/fassion_minst/
 
 # repeat
 python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_process_count 4 \
--hpc_gpu_count 1 -hpc_cpu_count_for_gpu 12 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
--report sep_7_model_12_dobe_exp13_cifar_10_fix_emb_128_NORM \
--batch_size 33 \
+-hpc_gpu_count 1 -hpc_cpu_count_for_gpu 8 -hpc_cpu_count 8 -hpc_gpu_max_queue 9999 -device cuda \
+-report dec_23_rep_cifar10 \
+-batch_size 33 90 \
 -triplet_positives 3 \
 -epochs_count 100 \
+-path_tmp_dir /scratch \
 -datasource_type cifar_10 \
--optimizer adam \
--params_grid embedding_norm triplet_similarity \
--embedding_norm l2 unit_range \
--triplet_similarity cos euclidean \
+-optimizer radam \
+-params_grid embedding_norm overlap_coef class_loss_coef center_loss_coef filter_samples batch_size \
+-embedding_norm unit_range_bounce_limit unit_range l2 \
+-triplet_similarity euclidean \
 -embedding_init xavier \
 -center_loss_min_count 500 \
+-filter_samples none hard \
+-embedding_scale 1.0 \
+-class_layers 1 \
 -learning_rate 1e-4 \
 -is_center_loss True \
 -is_class_loss True \
 -pos_loss_coef 1.0 \
 -neg_loss_coef 1.0 \
--center_loss_coef 1.0 \
--class_loss_coef 1.0 \
+-center_loss_coef 1.0 0.0 \
+-class_loss_coef 1.0 0.0 \
 -weight_decay 0 \
--overlap_coef 1.5 \
+-overlap_coef 40.0 0.0 80.0 \
 -layers_embedding_dropout 0.0 \
 -layers_embedding_type last \
 -embedding_layers 0 \
 -suffix_affine_layers_hidden_func maxout \
 -suffix_affine_layers_hidden_params 16 \
 -is_model_encoder_pretrained True \
--model_encoder densenet121 \
+-model_encoder densenet161 \
 -embedding_layers_last_norm none \
--max_embeddings_per_class_test 0 \
--max_embeddings_per_class_train 0 \
--max_embeddings_histograms 0 \
 -slope_coef 1.0 \
 -pos_coef 0.0 \
 -neg_coef 0.0 \
@@ -49,6 +50,13 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -embedding_layers_hidden 1024 \
 -leaky_relu_slope 0.01 \
 -embedding_size 128 \
+-embedding_layers_last_norm none \
+-slope_coef 1.0 \
+-pos_coef 0.0 \
+-neg_coef 0.0 \
+-triplet_loss exp13 \
+-embedding_layers_hidden_func relu \
+-leaky_relu_slope 0.01 \
 -embedding_function tanh \
 -conv_expansion_rate 2 \
 -conv_first_channel_count 32 \
@@ -62,11 +70,10 @@ python taskgen.py -repeat 1 -hpc_feautre_gpu k40 -hpc_queue batch -hpc_gpu_proce
 -kl_coef 1e-4 \
 -coef_loss_neg 1.0 \
 -lossless_beta 1.2 \
--filter_samples none \
 -is_triplet_loss_margin_auto False \
 -triplet_loss_margin 0.2 \
--triplet_sampler triplet_sampler_5_zipper  \
--model model_12_dobe \
+-triplet_sampler triplet_sampler_4 \
+-model model_13_hospital \
 -is_pre_grad_locked False \
 -datasource datasource_pytorch \
 -is_hpc True \
