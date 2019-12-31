@@ -13,5 +13,4 @@ Data-sets used:
 
 ![VGGFace2](vggface_demo.gif)
 
-![results](results.png)
 
