@@ -24,23 +24,33 @@ class MetricAccuracyClassification(object):
     @property
     def accuracy(self):
         if (self.tp + self.tn) == 0:
+            if self.fp == 0 and self.fn == 0:
+                return 1.0
             return 0
         return (self.tp + self.tn) / len(self)
 
     @property
     def recall(self):
+        if ((self.tp + self.tn) + self.fn) == 0:
+            return 0
         if (self.tp + self.tn) == 0:
+            if self.fp == 0 and self.fn == 0:
+                return 1.0
             return 0
         return (self.tp + self.tn) / ((self.tp + self.tn) + self.fn)
 
     @property
     def precision(self):
+        if ((self.tp + self.tn) + self.fp) == 0:
+            return 0
         if (self.tp + self.tn) == 0:
+            if self.fp == 0 and self.fn == 0:
+                return 1.0
             return 0
         return (self.tp + self.tn) / ((self.tp + self.tn) + self.fp)
 
     @property
     def f1(self):
-        if self.tp == 0:
-            return 0
+        if self.precision + self.recall == 0:
+            return 0.0
         return 2 * (self.precision * self.recall) / (self.precision + self.recall)

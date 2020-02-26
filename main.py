@@ -906,8 +906,6 @@ if __name__ == '__main__':
     #torch.autograd.set_detect_anomaly(True)
 
     LoggingUtils.info(f'batch count train: {len(data_loader_train)} test: {len(data_loader_test)}')
-    path_embeddings = f'{args.path_tmp_dir}/exp_loss/{args.id}'
-    FileUtils.createDir(path_embeddings)
 
     state_before_stopping = copy.deepcopy(state)
     for epoch in range(1, args.epochs_count + 1):
@@ -933,7 +931,6 @@ if __name__ == '__main__':
                         'max_dist': 0
                     }
                 }
-                FileUtils.deleteDir(path_embeddings, is_delete_dir_path=False)
 
                 meter_prefix = 'train'
                 if data_loader == data_loader_train:
@@ -1340,5 +1337,4 @@ if __name__ == '__main__':
                 logging_utils.info(f'{args.name} early stopping')
                 break
 
-    FileUtils.deleteDir(path_embeddings, is_delete_dir_path=True)
     tensorboard_writer.close()
